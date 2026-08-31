@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../chatgpt-auth";
+import { hasMatchLabAccess } from "../../access";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,7 @@ async function ensureSchema() {
 }
 
 export async function GET() {
+  if (!await hasMatchLabAccess()) return Response.json({error:"Access password required"},{status:403});
   const user = await getChatGPTUser();
   if (!user) return Response.json({error:"Sign in required"},{status:401});
   await ensureSchema();
@@ -27,6 +29,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!await hasMatchLabAccess()) return Response.json({error:"Access password required"},{status:403});
   const user = await getChatGPTUser();
   if (!user) return Response.json({error:"Sign in required"},{status:401});
   await ensureSchema();

@@ -100,6 +100,9 @@ export default function Home() {
   const [evaluator, setEvaluator] = useState<Evaluator|null>(null);
   const [teamReviews, setTeamReviews] = useState<TeamReview[]>([]);
   const [syncing, setSyncing] = useState(true);
+  const [access, setAccess] = useState<boolean|null>(null);
+  const [password, setPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const queryProfile = profiles.find(p => p.id === queryId) || profiles[0];
@@ -111,7 +114,8 @@ export default function Home() {
   const avg = completed ? candidates.reduce((s,c)=>s+(reviews[`${queryId}:${c.id}:${intent}`]?.overall ?? 0),0)/completed : 0;
 
   useEffect(() => {
-    fetch("/api/state").then(r=>r.ok?r.json():Promise.reject()).then(data=>{
+    fetch("/api/state").then(r=>{if(r.status===403){setAccess(false);throw new Error("access")};return r.ok?r.json():Promise.reject()}).then(data=>{
+      setAccess(true);
       setEvaluator(data.evaluator); setTeamReviews(data.reviews || []);
       if(data.profiles?.length){
         setProfiles(data.profiles); setQueryId(data.profiles[0].id); setIntent(data.profiles[0].intent || "该用户没有提供 Current_Social_Intent");
@@ -119,7 +123,7 @@ export default function Home() {
       const mine:Record<string,Review>={};
       for(const r of data.reviews || []) if(r.evaluatorId===data.evaluator.id) mine[`${r.queryId}:${r.candidateId}:${r.socialIntent}`]={overall:r.overall,intent:r.intentScore,interaction:r.interaction,context:r.context,mutuality:r.mutuality,reason:r.reason||"",uncertainty:r.uncertainty||"medium"};
       setReviews(mine);
-    }).catch(()=>notify("无法连接共享评审数据")).finally(()=>setSyncing(false));
+    }).catch(e=>{if(e?.message!=="access")notify("无法连接共享评审数据")}).finally(()=>setSyncing(false));
   }, []);
 
   const update = (patch: Partial<Review>) => {
@@ -148,6 +152,16 @@ export default function Home() {
       notify(`已共享 ${list.length} 个 profiles${list.some(p=>p.schema==="self-layer")?" · Self Layer schema":""}`);
     } catch { notify("无法识别文件，请检查 JSON 格式"); }
   }
+
+  async function unlock(e: React.FormEvent) {
+    e.preventDefault(); setPasswordError("");
+    const response=await fetch("/api/access",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({password})});
+    if(!response.ok){setPasswordError("密码不正确，请重试");return}
+    setAccess(true); window.location.reload();
+  }
+
+  if (access === null) return <main className="access-page"><div className="access-card"><span className="mark">M</span><p>正在连接 MatchLab…</p></div></main>;
+  if (access === false) return <main className="access-page"><form className="access-card" onSubmit={unlock}><span className="mark">M</span><div className="step-label">PRIVATE EVALUATION WORKSPACE</div><h1>进入 MatchLab</h1><p>请输入团队使用密码，验证后可查看共享 profiles 和评分。</p><label>使用密码<input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoFocus placeholder="Enter password"/></label>{passwordError&&<em>{passwordError}</em>}<button className="dark" type="submit">进入评审台 →</button></form></main>;
 
   if (!candidate) return <main className="empty"><h1>需要至少 2 个 profiles</h1><p>可以一次选择多份完整 Self Layer JSON</p><button onClick={()=>fileRef.current?.click()}>导入 JSON</button><input ref={fileRef} type="file" hidden multiple accept=".json" onChange={e=>importJson(e.target.files)}/></main>;
 
