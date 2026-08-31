@@ -168,7 +168,7 @@ export default function Home() {
           <div className="step-label">01 · SET THE SCENARIO</div>
           <div className="scenario-grid">
             <label><span>Query user</span><select value={queryId} onChange={e=>{changeQuery(e.target.value);const p=profiles.find(x=>x.id===e.target.value);setIntent(p?.intent || "该用户没有提供 Current_Social_Intent")}}>{profiles.map(p=><option key={p.id} value={p.id}>{p.name} · {p.role}</option>)}</select></label>
-            <label className="intent"><span>该用户的 Current Social Intent <small>由数据自动带入，可编辑</small></span><div className="intent-box"><textarea value={intent} onChange={e=>{setIntent(e.target.value);setCandidateIndex(0)}}/></div></label>
+            <div className="intent"><span>该用户的 Current Social Intent <small>来自导入数据 · 只读</small></span><div className="intent-readonly">{intent}</div></div>
           </div>
         </section>
 
