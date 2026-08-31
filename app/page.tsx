@@ -114,7 +114,7 @@ export default function Home() {
   const avg = completed ? candidates.reduce((s,c)=>s+(reviews[`${queryId}:${c.id}:${intent}`]?.overall ?? 0),0)/completed : 0;
 
   useEffect(() => {
-    fetch("/api/state").then(r=>{if(r.status===403){setAccess(false);throw new Error("access")};return r.ok?r.json():Promise.reject()}).then(data=>{
+    fetch("/api/state").then(r=>{if(r.status===403){setAccess(false);throw new Error("access")};if(r.status===401){window.location.href="/signin-with-chatgpt?return_to=%2F";throw new Error("signin")};return r.ok?r.json():Promise.reject()}).then(data=>{
       setAccess(true);
       setEvaluator(data.evaluator); setTeamReviews(data.reviews || []);
       if(data.profiles?.length){
@@ -123,7 +123,7 @@ export default function Home() {
       const mine:Record<string,Review>={};
       for(const r of data.reviews || []) if(r.evaluatorId===data.evaluator.id) mine[`${r.queryId}:${r.candidateId}:${r.socialIntent}`]={overall:r.overall,intent:r.intentScore,interaction:r.interaction,context:r.context,mutuality:r.mutuality,reason:r.reason||"",uncertainty:r.uncertainty||"medium"};
       setReviews(mine);
-    }).catch(e=>{if(e?.message!=="access")notify("无法连接共享评审数据")}).finally(()=>setSyncing(false));
+    }).catch(e=>{if(!["access","signin"].includes(e?.message))notify("无法连接共享评审数据")}).finally(()=>setSyncing(false));
   }, []);
 
   const update = (patch: Partial<Review>) => {
