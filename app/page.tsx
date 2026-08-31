@@ -46,6 +46,15 @@ function makeId(name: string, index: number) {
   return `${safe || "user"}-${index + 1}`;
 }
 
+function collectProfiles(node: any, path: string[] = []): any[] {
+  if (!node || typeof node !== "object") return [];
+  if (node["06_User_Summary"] || node["00_Core_Profile"] || node["05_Matching_Profile"]) {
+    return [{...node, __sourceId:path.join("-") || undefined}];
+  }
+  if (Array.isArray(node)) return node.flatMap((item,index)=>collectProfiles(item,[...path,String(index+1)]));
+  return Object.entries(node).flatMap(([key,value])=>key.startsWith("_") ? [] : collectProfiles(value,[...path,key]));
+}
+
 function extractProfile(raw: any, index: number): Profile {
   const summary = raw?.["06_User_Summary"] || raw?.user_summary;
   const core = raw?.["00_Core_Profile"] || {};
@@ -54,7 +63,7 @@ function extractProfile(raw: any, index: number): Profile {
     const domains = summary?.Domain_Summaries?.Core_Domains || {};
     const currentIntent = summary?.Current_Social_Intent?.intent;
     const assertions = Array.isArray(summary?.Profile_Assertions) ? summary.Profile_Assertions.map((x:any)=>asText(x?.assertion,"")).filter(Boolean) : [];
-    const name = asText(core?.identity?.nickname || summary?.identity?.nickname, `User ${index+1}`);
+    const name = asText(core?.identity?.nickname || summary?.identity?.nickname || raw?.__sourceId, `User ${index+1}`);
     const birth = core?.identity?.birth?.date;
     const age = birth ? Math.max(0, new Date().getFullYear() - new Date(birth).getFullYear()) : Number(raw?.age || 0);
     const interestItems = raw?.["01_Self_Memory"]?.interest?.爱好;
@@ -65,7 +74,7 @@ function extractProfile(raw: any, index: number): Profile {
     const pursuit = domains.pursuit || raw?.["01_Self_Memory"]?.pursuit?.正在做的?.[0]?.content;
     const role = raw?.["01_Self_Memory"]?.pursuit?.正在做的?.[0]?.role || pursuit || "Profile participant";
     const bioParts = [domains.personality, domains.interest].filter(Boolean);
-    return { id:String(raw?.id || makeId(name,index)), name, age, city:asText(core?.residence?.city || domains.identity), role:asText(role),
+    return { id:String(raw?.id || raw?.__sourceId || makeId(name,index)), name, age, city:asText(core?.residence?.city || domains.identity), role:asText(role),
       bio:bioParts.join(" ") || assertions.slice(0,2).join(" ") || "暂无公开简介", tags:Array.isArray(tags)?tags.slice(0,8).map(String):[],
       availability:asText(domains.lifestyle || matching?.Social_Status?.social_availability,"未说明"), interaction:asText(styleParts,"未说明"),
       assertions:assertions.slice(0,7), intent:currentIntent || matching?.Social_Intent?.current_motivation?.content, schema:"self-layer" };
@@ -109,7 +118,7 @@ export default function Home() {
     if(!files?.length) return;
     try {
       const parsed = await Promise.all(Array.from(files).map(async f=>JSON.parse(await f.text())));
-      const rawList = parsed.flatMap(data => Array.isArray(data) ? data : Array.isArray(data?.profiles) ? data.profiles : [data]);
+      const rawList = parsed.flatMap(data => Array.isArray(data?.profiles) ? data.profiles : collectProfiles(data));
       const list = rawList.map(extractProfile);
       if(!list.length) throw new Error();
       setProfiles(list); setQueryId(list[0].id); setIntent(list[0].intent || intents[0]); setCandidateIndex(0);
