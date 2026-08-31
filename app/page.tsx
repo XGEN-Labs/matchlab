@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 type Profile = {
   id: string; name: string; age: number; city: string; role: string;
   bio: string; tags: string[]; availability: string; interaction: string;
+  assertions?: string[]; intent?: string; schema?: "matchlab" | "self-layer";
 };
 
 type Review = {
@@ -35,6 +36,46 @@ const dims: Array<[keyof Review, string, string]> = [
   ["mutuality","双向意愿","对方也可能从这次匹配中获益吗"],
 ];
 
+function asText(value: unknown, fallback = "—") {
+  if (Array.isArray(value)) return value.filter(Boolean).join(" · ") || fallback;
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function makeId(name: string, index: number) {
+  const safe = name.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/g,"-").replace(/^-|-$/g,"");
+  return `${safe || "user"}-${index + 1}`;
+}
+
+function extractProfile(raw: any, index: number): Profile {
+  const summary = raw?.["06_User_Summary"] || raw?.user_summary;
+  const core = raw?.["00_Core_Profile"] || {};
+  const matching = raw?.["05_Matching_Profile"] || {};
+  if (summary || core?.identity || matching?.Social_Intent) {
+    const domains = summary?.Domain_Summaries?.Core_Domains || {};
+    const currentIntent = summary?.Current_Social_Intent?.intent;
+    const assertions = Array.isArray(summary?.Profile_Assertions) ? summary.Profile_Assertions.map((x:any)=>asText(x?.assertion,"")).filter(Boolean) : [];
+    const name = asText(core?.identity?.nickname || summary?.identity?.nickname, `User ${index+1}`);
+    const birth = core?.identity?.birth?.date;
+    const age = birth ? Math.max(0, new Date().getFullYear() - new Date(birth).getFullYear()) : Number(raw?.age || 0);
+    const interestItems = raw?.["01_Self_Memory"]?.interest?.爱好;
+    const rawTags = Array.isArray(interestItems) ? interestItems.map((x:any)=>x?.content).filter(Boolean) : [];
+    const tags = matching?.Social_Intent?.shared_context || rawTags;
+    const style = matching?.Social_Style || {};
+    const styleParts = [style.warm_up_style, ...(style.conversation_style || []), ...(style.setting_preference || [])].filter(Boolean);
+    const pursuit = domains.pursuit || raw?.["01_Self_Memory"]?.pursuit?.正在做的?.[0]?.content;
+    const role = raw?.["01_Self_Memory"]?.pursuit?.正在做的?.[0]?.role || pursuit || "Profile participant";
+    const bioParts = [domains.personality, domains.interest].filter(Boolean);
+    return { id:String(raw?.id || makeId(name,index)), name, age, city:asText(core?.residence?.city || domains.identity), role:asText(role),
+      bio:bioParts.join(" ") || assertions.slice(0,2).join(" ") || "暂无公开简介", tags:Array.isArray(tags)?tags.slice(0,8).map(String):[],
+      availability:asText(domains.lifestyle || matching?.Social_Status?.social_availability,"未说明"), interaction:asText(styleParts,"未说明"),
+      assertions:assertions.slice(0,7), intent:currentIntent || matching?.Social_Intent?.current_motivation?.content, schema:"self-layer" };
+  }
+  return { id:String(raw.id || makeId(String(raw.name || `User ${index+1}`),index)), name:String(raw.name || `User ${index+1}`), age:Number(raw.age || 0),
+    city:String(raw.city || "—"), role:String(raw.role || raw.occupation || "—"), bio:String(raw.bio || raw.about || ""),
+    tags:Array.isArray(raw.tags)?raw.tags:[], availability:String(raw.availability || "Not specified"), interaction:String(raw.interaction || "Not specified"),
+    assertions:Array.isArray(raw.assertions)?raw.assertions:[], intent:raw.intent, schema:"matchlab" };
+}
+
 export default function Home() {
   const [profiles, setProfiles] = useState<Profile[]>(seedProfiles);
   const [queryId, setQueryId] = useState("maya");
@@ -64,26 +105,19 @@ export default function Home() {
   const notify = (text:string) => { setToast(text); window.setTimeout(()=>setToast(""),1800); };
   const changeQuery = (id:string) => { setQueryId(id); setCandidateIndex(0); setComparison(null); };
 
-  function importJson(file?: File) {
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const data = JSON.parse(String(reader.result));
-        const list = Array.isArray(data) ? data : data.profiles;
-        if(!Array.isArray(list) || !list.length) throw new Error();
-        setProfiles(list.map((p:any,i:number)=>({
-          id:String(p.id || `user-${i+1}`), name:String(p.name || `User ${i+1}`), age:Number(p.age || 0),
-          city:String(p.city || "—"), role:String(p.role || p.occupation || "—"), bio:String(p.bio || p.about || ""),
-          tags:Array.isArray(p.tags)?p.tags:[], availability:String(p.availability || "Not specified"), interaction:String(p.interaction || "Not specified")
-        })));
-        setQueryId(String(list[0].id || "user-1")); setCandidateIndex(0); notify(`已导入 ${list.length} 个 profiles`);
-      } catch { notify("无法识别该 JSON 文件"); }
-    };
-    reader.readAsText(file);
+  async function importJson(files?: FileList | null) {
+    if(!files?.length) return;
+    try {
+      const parsed = await Promise.all(Array.from(files).map(async f=>JSON.parse(await f.text())));
+      const rawList = parsed.flatMap(data => Array.isArray(data) ? data : Array.isArray(data?.profiles) ? data.profiles : [data]);
+      const list = rawList.map(extractProfile);
+      if(!list.length) throw new Error();
+      setProfiles(list); setQueryId(list[0].id); setIntent(list[0].intent || intents[0]); setCandidateIndex(0);
+      notify(`已识别 ${list.length} 个 profiles${list.some(p=>p.schema==="self-layer")?" · Self Layer schema":""}`);
+    } catch { notify("无法识别文件，请检查 JSON 格式"); }
   }
 
-  if (!candidate) return <main className="empty"><h1>需要至少 2 个 profiles</h1><button onClick={()=>fileRef.current?.click()}>导入 JSON</button><input ref={fileRef} type="file" hidden accept=".json" onChange={e=>importJson(e.target.files?.[0])}/></main>;
+  if (!candidate) return <main className="empty"><h1>需要至少 2 个 profiles</h1><p>可以一次选择多份完整 Self Layer JSON</p><button onClick={()=>fileRef.current?.click()}>导入 JSON</button><input ref={fileRef} type="file" hidden multiple accept=".json" onChange={e=>importJson(e.target.files)}/></main>;
 
   return (
     <main>
@@ -92,7 +126,7 @@ export default function Home() {
         <div className="header-actions">
           <span className="saved"><i/> 本机自动保存</span>
           <button className="ghost" onClick={()=>fileRef.current?.click()}>↥ 导入 profiles</button>
-          <input ref={fileRef} type="file" hidden accept=".json,application/json" onChange={e=>importJson(e.target.files?.[0])}/>
+          <input ref={fileRef} type="file" hidden multiple accept=".json,application/json" onChange={e=>importJson(e.target.files)}/>
           <button className="dark" onClick={()=>setView(view==="review"?"results":"review")}>{view==="review"?"查看结果 →":"← 返回评审"}</button>
         </div>
       </header>
@@ -101,7 +135,7 @@ export default function Home() {
         <section className="scenario">
           <div className="step-label">01 · SET THE SCENARIO</div>
           <div className="scenario-grid">
-            <label><span>Query user</span><select value={queryId} onChange={e=>changeQuery(e.target.value)}>{profiles.map(p=><option key={p.id} value={p.id}>{p.name} · {p.role}</option>)}</select></label>
+            <label><span>Query user</span><select value={queryId} onChange={e=>{changeQuery(e.target.value);const p=profiles.find(x=>x.id===e.target.value);if(p?.intent)setIntent(p.intent)}}>{profiles.map(p=><option key={p.id} value={p.id}>{p.name} · {p.role}</option>)}</select></label>
             <label className="intent"><span>Social intent</span><div className="intent-box"><textarea value={intent} onChange={e=>{setIntent(e.target.value);setCandidateIndex(0)}}/><select aria-label="Preset intent" onChange={e=>setIntent(e.target.value)} value={intents.includes(intent)?intent:""}><option value="" disabled>选择预设</option>{intents.map(x=><option key={x}>{x}</option>)}</select></div></label>
           </div>
         </section>
@@ -123,6 +157,7 @@ export default function Home() {
             <div className="about"><span>ABOUT</span><p>“{candidate.bio}”</p></div>
             <div className="facts"><div><span>AVAILABILITY</span><b>{candidate.availability}</b></div><div><span>INTERACTION STYLE</span><b>{candidate.interaction}</b></div></div>
             <div className="interests"><span>INTEREST SIGNALS</span><div>{candidate.tags.map(t=><em key={t}>{t}</em>)}</div></div>
+            {!!candidate.assertions?.length && <div className="assertions"><span>PROFILE ASSERTIONS</span>{candidate.assertions.slice(0,4).map((a,i)=><p key={i}><i>✓</i>{a}</p>)}</div>}
             <div className="context-card"><span>YOUR MATCHING QUESTION</span><p>“{intent}”</p><small>仅根据以上信息判断。方法身份在结果页揭晓。</small></div>
           </section>
 
