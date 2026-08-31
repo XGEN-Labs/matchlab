@@ -12,6 +12,8 @@ type Review = {
   overall?: number; intent?: number; interaction?: number; context?: number;
   mutuality?: number; reason: string; uncertainty: "low" | "medium" | "high";
 };
+type Evaluator = { id:string; name:string; email:string };
+type TeamReview = Review & { evaluatorId:string; evaluatorName:string; queryId:string; candidateId:string; socialIntent:string; updatedAt:number };
 
 const seedProfiles: Profile[] = [
   { id:"maya", name:"Maya Chen", age:28, city:"Shanghai", role:"Product designer", bio:"Designing calm digital tools. I like small groups, long walks and conversations that wander into unexpected places.", tags:["urban hiking","indie films","coffee","design"], availability:"Weekend mornings", interaction:"Warm, curious · prefers 1:1" },
@@ -95,6 +97,9 @@ export default function Home() {
   const [view, setView] = useState<"review"|"results">("review");
   const [comparison, setComparison] = useState<"A"|"B"|"tie"|null>(null);
   const [toast, setToast] = useState("");
+  const [evaluator, setEvaluator] = useState<Evaluator|null>(null);
+  const [teamReviews, setTeamReviews] = useState<TeamReview[]>([]);
+  const [syncing, setSyncing] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const queryProfile = profiles.find(p => p.id === queryId) || profiles[0];
@@ -106,12 +111,27 @@ export default function Home() {
   const avg = completed ? candidates.reduce((s,c)=>s+(reviews[`${queryId}:${c.id}:${intent}`]?.overall ?? 0),0)/completed : 0;
 
   useEffect(() => {
-    const saved = localStorage.getItem("matchlab-reviews");
-    if(saved) { try { setReviews(JSON.parse(saved)); } catch {} }
+    fetch("/api/state").then(r=>r.ok?r.json():Promise.reject()).then(data=>{
+      setEvaluator(data.evaluator); setTeamReviews(data.reviews || []);
+      if(data.profiles?.length){
+        setProfiles(data.profiles); setQueryId(data.profiles[0].id); setIntent(data.profiles[0].intent || "该用户没有提供 Current_Social_Intent");
+      }
+      const mine:Record<string,Review>={};
+      for(const r of data.reviews || []) if(r.evaluatorId===data.evaluator.id) mine[`${r.queryId}:${r.candidateId}:${r.socialIntent}`]={overall:r.overall,intent:r.intentScore,interaction:r.interaction,context:r.context,mutuality:r.mutuality,reason:r.reason||"",uncertainty:r.uncertainty||"medium"};
+      setReviews(mine);
+    }).catch(()=>notify("无法连接共享评审数据")).finally(()=>setSyncing(false));
   }, []);
-  useEffect(() => { localStorage.setItem("matchlab-reviews", JSON.stringify(reviews)); }, [reviews]);
 
-  const update = (patch: Partial<Review>) => setReviews(r => ({...r, [key]: {...review, ...patch}}));
+  const update = (patch: Partial<Review>) => {
+    const merged={...review,...patch};
+    setReviews(r => ({...r, [key]:merged}));
+    fetch("/api/state",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"review",review:{...merged,queryId,candidateId:candidate.id,socialIntent:intent}})})
+      .then(r=>r.ok?r.json():Promise.reject()).then(result=>{
+        if(!evaluator)return;
+        const saved:TeamReview={...merged,evaluatorId:evaluator.id,evaluatorName:result.evaluatorName,queryId,candidateId:candidate.id,socialIntent:intent,updatedAt:result.updatedAt};
+        setTeamReviews(xs=>[saved,...xs.filter(x=>!(x.evaluatorId===saved.evaluatorId&&x.queryId===queryId&&x.candidateId===candidate.id&&x.socialIntent===intent))]);
+      }).catch(()=>notify("评分同步失败，请重试"));
+  };
   const notify = (text:string) => { setToast(text); window.setTimeout(()=>setToast(""),1800); };
   const changeQuery = (id:string) => { setQueryId(id); setCandidateIndex(0); setComparison(null); };
 
@@ -122,8 +142,10 @@ export default function Home() {
       const rawList = parsed.flatMap(data => Array.isArray(data?.profiles) ? data.profiles : collectProfiles(data));
       const list = rawList.map(extractProfile);
       if(!list.length) throw new Error();
-      setProfiles(list); setQueryId(list[0].id); setIntent(list[0].intent || intents[0]); setCandidateIndex(0);
-      notify(`已识别 ${list.length} 个 profiles${list.some(p=>p.schema==="self-layer")?" · Self Layer schema":""}`);
+      setProfiles(list); setQueryId(list[0].id); setIntent(list[0].intent || "该用户没有提供 Current_Social_Intent"); setCandidateIndex(0);
+      const response=await fetch("/api/state",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"import",profiles:list})});
+      if(!response.ok) throw new Error();
+      notify(`已共享 ${list.length} 个 profiles${list.some(p=>p.schema==="self-layer")?" · Self Layer schema":""}`);
     } catch { notify("无法识别文件，请检查 JSON 格式"); }
   }
 
@@ -134,14 +156,14 @@ export default function Home() {
       <header className="topbar">
         <div className="brand"><span className="mark">M</span><span>MatchLab</span><span className="badge">EVALUATION MVP</span></div>
         <div className="header-actions">
-          <span className="saved"><i/> 本机自动保存</span>
+          <span className="saved"><i/> {syncing?"正在连接共享数据":evaluator?`${evaluator.name} · 自动同步`:"未登录"}</span>
           <button className="ghost" onClick={()=>fileRef.current?.click()}>↥ 导入 profiles</button>
           <input ref={fileRef} type="file" hidden multiple accept=".json,application/json" onChange={e=>importJson(e.target.files)}/>
           <button className="dark" onClick={()=>setView(view==="review"?"results":"review")}>{view==="review"?"查看结果 →":"← 返回评审"}</button>
         </div>
       </header>
 
-      {view === "results" ? <Results candidates={candidates} reviews={reviews} queryId={queryId} intent={intent} comparison={comparison} /> : <>
+      {view === "results" ? <Results candidates={candidates} reviews={reviews} teamReviews={teamReviews} queryId={queryId} intent={intent} comparison={comparison} /> : <>
         <section className="scenario">
           <div className="step-label">01 · SET THE SCENARIO</div>
           <div className="scenario-grid">
@@ -201,12 +223,14 @@ function PersonCard({profile,side,method}:{profile:Profile;side:"query"|"candida
   </article>
 }
 
-function Results({candidates,reviews,queryId,intent,comparison}:{candidates:Profile[];reviews:Record<string,Review>;queryId:string;intent:string;comparison:"A"|"B"|"tie"|null}) {
+function Results({candidates,reviews,teamReviews,queryId,intent,comparison}:{candidates:Profile[];reviews:Record<string,Review>;teamReviews:TeamReview[];queryId:string;intent:string;comparison:"A"|"B"|"tie"|null}) {
   const rows=candidates.map((c,i)=>({c, method:i%2?"B":"A", r:reviews[`${queryId}:${c.id}:${intent}`]})).filter(x=>x.r?.overall!==undefined).sort((a,b)=>(b.r.overall||0)-(a.r.overall||0));
   const stats=(method:string)=>{const xs=rows.filter(x=>x.method===method);return {n:xs.length,avg:xs.length?xs.reduce((s,x)=>s+(x.r.overall||0),0)/xs.length:0,top:rows.slice(0,3).filter(x=>x.method===method).length}};
   const a=stats("A"),b=stats("B");
+  const evaluatorCount = new Set(teamReviews.map(r=>r.evaluatorId)).size;
   return <section className="results-page"><div className="results-title"><div><div className="step-label">EVALUATION SUMMARY</div><h1>哪种方法更接近人的判断？</h1><p>当前场景的方向性结果 · 完成 {rows.length}/{candidates.length} 位候选人</p></div><div className="winner">盲测偏好<strong>{comparison?comparison==="tie"?"持平":`Method ${comparison}`:"尚未选择"}</strong></div></div>
     <div className="method-cards"><article><span>METHOD A</span><h2>{a.avg.toFixed(1)}<small>/ 3 平均人工分</small></h2><div><b>{a.top}</b> 人进入人工 Top 3 <i style={{width:`${a.avg/3*100}%`}}/></div></article><article className="accent"><span>METHOD B</span><h2>{b.avg.toFixed(1)}<small>/ 3 平均人工分</small></h2><div><b>{b.top}</b> 人进入人工 Top 3 <i style={{width:`${b.avg/3*100}%`}}/></div></article></div>
-    <div className="results-grid"><article className="ranking"><div className="table-head"><b>人工排序</b><span>OVERALL FIT</span></div>{rows.map((x,i)=><div className="result-row" key={x.c.id}><strong>{i+1}</strong><span className="avatar">{x.c.name.split(" ").map(y=>y[0]).join("")}</span><div><b>{x.c.name}</b><small>{x.c.role}</small></div><em>Method {x.method}</em><span className="dots">{[0,1,2,3].map(n=><i key={n} className={(x.r.overall||0)>=n&&n>0?"on":""}/>)}</span><strong className="num">{x.r.overall}</strong></div>)}</article><article className="readout"><span>HOW TO READ THIS</span><h3>先看方向，不下结论。</h3><p>样本量适合判断 Matching Persona 是否值得继续验证，不足以证明真实产品效果。</p><ul><li>比较两种方法的平均人工分</li><li>观察人工 Top 3 中的方法分布</li><li>结合盲测偏好与理由检查变化是否围绕 intent</li></ul><button onClick={()=>{const blob=new Blob([JSON.stringify({intent,comparison,reviews},null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="matchlab-evaluation.json";a.click();URL.revokeObjectURL(url)}}>导出本轮结果 ↓</button></article></div>
+    <div className="results-grid"><article className="ranking"><div className="table-head"><b>我的人工排序</b><span>OVERALL FIT</span></div>{rows.map((x,i)=><div className="result-row" key={x.c.id}><strong>{i+1}</strong><span className="avatar">{x.c.name.split(" ").map(y=>y[0]).join("")}</span><div><b>{x.c.name}</b><small>{x.c.role}</small></div><em>Method {x.method}</em><span className="dots">{[0,1,2,3].map(n=><i key={n} className={(x.r.overall||0)>=n&&n>0?"on":""}/>)}</span><strong className="num">{x.r.overall}</strong></div>)}</article><article className="readout"><span>HOW TO READ THIS</span><h3>先看方向，不下结论。</h3><p>样本量适合判断 Matching Persona 是否值得继续验证，不足以证明真实产品效果。</p><ul><li>比较两种方法的平均人工分</li><li>观察人工 Top 3 中的方法分布</li><li>结合不同 evaluator 的判断与理由</li></ul><button onClick={()=>{const blob=new Blob([JSON.stringify({intent,comparison,reviews:teamReviews},null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="matchlab-evaluation.json";a.click();URL.revokeObjectURL(url)}}>导出团队结果 ↓</button></article></div>
+    <article className="team-log"><div className="table-head"><b>团队评分记录</b><span>{evaluatorCount} 位评审者</span></div>{teamReviews.filter(r=>r.queryId===queryId&&r.socialIntent===intent).slice(0,30).map((r,i)=>{const c=candidates.find(x=>x.id===r.candidateId);return <div className="team-row" key={`${r.evaluatorId}-${r.candidateId}-${i}`}><span className="reviewer">{r.evaluatorName.slice(0,1)}</span><div><b>{r.evaluatorName}</b><small>评价 {c?.name||r.candidateId}</small></div><strong>{r.overall ?? "—"}/3</strong><p>{r.reason||"未填写理由"}</p><time>{new Date(r.updatedAt).toLocaleString("zh-CN")}</time></div>})}</article>
   </section>
 }
