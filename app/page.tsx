@@ -97,6 +97,7 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const queryProfile = profiles.find(p => p.id === queryId) || profiles[0];
   const candidates = useMemo(() => profiles.filter(p => p.id !== queryId), [profiles, queryId]);
   const candidate = candidates[Math.min(candidateIndex, Math.max(0,candidates.length-1))];
   const key = `${queryId}:${candidate?.id || "none"}:${intent}`;
@@ -144,8 +145,8 @@ export default function Home() {
         <section className="scenario">
           <div className="step-label">01 · SET THE SCENARIO</div>
           <div className="scenario-grid">
-            <label><span>Query user</span><select value={queryId} onChange={e=>{changeQuery(e.target.value);const p=profiles.find(x=>x.id===e.target.value);if(p?.intent)setIntent(p.intent)}}>{profiles.map(p=><option key={p.id} value={p.id}>{p.name} · {p.role}</option>)}</select></label>
-            <label className="intent"><span>Social intent</span><div className="intent-box"><textarea value={intent} onChange={e=>{setIntent(e.target.value);setCandidateIndex(0)}}/><select aria-label="Preset intent" onChange={e=>setIntent(e.target.value)} value={intents.includes(intent)?intent:""}><option value="" disabled>选择预设</option>{intents.map(x=><option key={x}>{x}</option>)}</select></div></label>
+            <label><span>Query user</span><select value={queryId} onChange={e=>{changeQuery(e.target.value);const p=profiles.find(x=>x.id===e.target.value);setIntent(p?.intent || "该用户没有提供 Current_Social_Intent")}}>{profiles.map(p=><option key={p.id} value={p.id}>{p.name} · {p.role}</option>)}</select></label>
+            <label className="intent"><span>该用户的 Current Social Intent <small>由数据自动带入，可编辑</small></span><div className="intent-box"><textarea value={intent} onChange={e=>{setIntent(e.target.value);setCandidateIndex(0)}}/></div></label>
           </div>
         </section>
 
@@ -161,13 +162,13 @@ export default function Home() {
             <div className="blind-card"><span>BLIND COMPARISON</span><b>Method A vs Method B</b><p>方法身份会在提交后揭晓，减少先入为主。</p><div className="ab-row">{(["A","B","tie"] as const).map(x=><button key={x} className={comparison===x?"picked":""} onClick={()=>setComparison(x)}>{x==="tie"?"持平":x}</button>)}</div></div>
           </aside>
 
-          <section className="profile-panel">
-            <div className="profile-head"><span className="avatar large">{candidate.name.split(" ").map(x=>x[0]).join("")}</span><div><div className="eyebrow">CANDIDATE {candidateIndex+1} OF {candidates.length}</div><h1>{candidate.name}</h1><p>{candidate.age} · {candidate.city} · {candidate.role}</p></div><span className="method">METHOD {candidateIndex%2?"B":"A"}</span></div>
-            <div className="about"><span>ABOUT</span><p>“{candidate.bio}”</p></div>
-            <div className="facts"><div><span>AVAILABILITY</span><b>{candidate.availability}</b></div><div><span>INTERACTION STYLE</span><b>{candidate.interaction}</b></div></div>
-            <div className="interests"><span>INTEREST SIGNALS</span><div>{candidate.tags.map(t=><em key={t}>{t}</em>)}</div></div>
-            {!!candidate.assertions?.length && <div className="assertions"><span>PROFILE ASSERTIONS</span>{candidate.assertions.slice(0,4).map((a,i)=><p key={i}><i>✓</i>{a}</p>)}</div>}
-            <div className="context-card"><span>YOUR MATCHING QUESTION</span><p>“{intent}”</p><small>仅根据以上信息判断。方法身份在结果页揭晓。</small></div>
+          <section className="profile-panel compare-panel">
+            <div className="compare-title"><span>QUERY USER</span><i>判断两个人在当前 intent 下是否合适</i><span>CANDIDATE {candidateIndex+1}/{candidates.length}</span></div>
+            <div className="compare-profiles">
+              <PersonCard profile={queryProfile} side="query" />
+              <PersonCard profile={candidate} side="candidate" method={candidateIndex%2?"B":"A"} />
+            </div>
+            <div className="context-card"><span>{queryProfile.name} 的 CURRENT SOCIAL INTENT</span><p>“{intent}”</p><small>请同时考虑 Query User 的需求和 Candidate 的可能意愿。</small></div>
           </section>
 
           <aside className="rating-panel">
@@ -185,6 +186,19 @@ export default function Home() {
       {toast && <div className="toast">{toast}</div>}
     </main>
   );
+}
+
+function PersonCard({profile,side,method}:{profile:Profile;side:"query"|"candidate";method?:string}) {
+  const meta = [profile.age ? `${profile.age}岁` : "", profile.city, profile.role].filter(x=>x && x!=="—").join(" · ");
+  return <article className={`person-card ${side}`}>
+    <div className="person-label">{side==="query"?"需求发起者":"候选对象"}{method&&<em>METHOD {method}</em>}</div>
+    <div className="profile-head"><span className="avatar large">{profile.name.slice(0,2)}</span><div><h1>{profile.name}</h1><p>{meta}</p></div></div>
+    <div className="about"><span>PROFILE SUMMARY</span><p>“{profile.bio}”</p></div>
+    <div className="mini-fact"><span>互动方式</span><b>{profile.interaction}</b></div>
+    <div className="mini-fact"><span>生活与可参与性</span><b>{profile.availability}</b></div>
+    <div className="interests"><span>兴趣与共同语境</span><div>{profile.tags.slice(0,6).map(t=><em key={t}>{t}</em>)}</div></div>
+    {!!profile.assertions?.length && <div className="assertions"><span>关键判断线索</span>{profile.assertions.slice(0,3).map((a,i)=><p key={i}><i>✓</i>{a}</p>)}</div>}
+  </article>
 }
 
 function Results({candidates,reviews,queryId,intent,comparison}:{candidates:Profile[];reviews:Record<string,Review>;queryId:string;intent:string;comparison:"A"|"B"|"tie"|null}) {
