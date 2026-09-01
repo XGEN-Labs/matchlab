@@ -186,7 +186,6 @@ export default function Home() {
           <div className="step-label">01 · SET THE SCENARIO</div>
           <div className="scenario-grid">
             <label><span>Query user</span><select value={queryId} onChange={e=>{changeQuery(e.target.value);const p=profiles.find(x=>x.id===e.target.value);setIntent(p?.intent || "该用户没有提供 Current_Social_Intent")}}>{profiles.map(p=><option key={p.id} value={p.id}>{p.name} · {p.role}</option>)}</select></label>
-            <div className="context-card scenario-intent"><span>{queryProfile.name} 的 CURRENT SOCIAL INTENT · 只读</span><p>“{intent}”</p><small>这是本轮判断的唯一 Social Intent。</small></div>
           </div>
         </section>
 
@@ -232,7 +231,7 @@ function PersonCard({profile,side,method}:{profile:Profile;side:"query"|"candida
   return <article className={`person-card ${side}`}>
     <div className="person-label">{side==="query"?"需求发起者":"候选对象"}{method&&<em>METHOD {method}</em>}</div>
     <div className="profile-head"><span className="avatar large">{avatarNumber(profile.name)}</span><div><h1>{profile.name}</h1><p>{meta}</p></div></div>
-    {side==="candidate" && <div className="candidate-intent"><span>CANDIDATE SOCIAL INTENT</span><p>“{profile.intent || "该候选对象没有提供 Current_Social_Intent"}”</p></div>}
+    <div className="profile-intent"><span>{side==="query"?"QUERY SOCIAL INTENT":"CANDIDATE SOCIAL INTENT"}</span><p>“{profile.intent || (side==="query"?"该用户没有提供 Current_Social_Intent":"该候选对象没有提供 Current_Social_Intent")}”</p></div>
     <div className="about"><span>PROFILE SUMMARY</span><p>“{profile.bio}”</p></div>
     <div className="mini-fact"><span>互动方式</span><b>{profile.interaction}</b></div>
     <div className="mini-fact"><span>生活与可参与性</span><b>{profile.availability}</b></div>
