@@ -147,6 +147,7 @@ export default function Home() {
   const [reviews, setReviews] = useState<Record<string, Review>>({});
   const [showDims, setShowDims] = useState(true);
   const [view, setView] = useState<"review"|"results">("review");
+  const [inspectedSource, setInspectedSource] = useState("mine");
   const [toast, setToast] = useState("");
   const [evaluator, setEvaluator] = useState<Evaluator|null>(null);
   const [teamReviews, setTeamReviews] = useState<TeamReview[]>([]);
@@ -164,6 +165,10 @@ export default function Home() {
   const review = reviews[key] || emptyReview();
   const completed = candidates.filter(c => reviews[`${queryId}:${c.id}:${intent}`]?.overall !== undefined).length;
   const avg = completed ? candidates.reduce((s,c)=>s+(reviews[`${queryId}:${c.id}:${intent}`]?.overall ?? 0),0)/completed : 0;
+  const llmCandidateScore=llmRuns.find(run=>run.query_user_id===queryProfile?.name)?.ranking.find(row=>row.candidate_id===candidate?.name);
+  const inspectedTeamScore=inspectedSource.startsWith("person:")?teamReviews.find(r=>r.evaluatorId===inspectedSource.replace("person:","")&&r.queryId===queryId&&r.candidateId===candidate?.id):undefined;
+  const inspectedReview:Review|undefined=inspectedSource==="llm"&&llmCandidateScore?{overall:llmCandidateScore.overall_fit,intent:llmCandidateScore.intent_fit,interaction:llmCandidateScore.interaction_compatibility,context:llmCandidateScore.context_fit,mutuality:llmCandidateScore.mutuality,reason:llmCandidateScore.reason,uncertainty:llmCandidateScore.uncertainty as Review["uncertainty"]}:inspectedSource.startsWith("person:")&&inspectedTeamScore?{overall:inspectedTeamScore.overall,intent:(inspectedTeamScore as any).intentScore??inspectedTeamScore.intent,interaction:inspectedTeamScore.interaction,context:inspectedTeamScore.context,mutuality:inspectedTeamScore.mutuality,reason:inspectedTeamScore.reason,uncertainty:inspectedTeamScore.uncertainty}:undefined;
+  const inspectedLabel=inspectedSource==="llm"?"LLM 评分":inspectedSource.startsWith("person:")?(inspectedTeamScore?.evaluatorName||"其他评审者"):"我的评分";
 
   useEffect(() => {
     fetch("/api/state").then(r=>{if(r.status===403){setAccess(false);throw new Error("access")};if(r.status===401){window.location.href="/signin-with-chatgpt?return_to=%2F";throw new Error("signin")};return r.ok?r.json():Promise.reject()}).then(data=>{
@@ -190,7 +195,7 @@ export default function Home() {
       }).catch(()=>notify("评分同步失败，请重试"));
   };
   const notify = (text:string) => { setToast(text); window.setTimeout(()=>setToast(""),1800); };
-  const changeQuery = (id:string) => { setQueryId(id); setCandidateIndex(0); };
+  const changeQuery = (id:string) => { setQueryId(id); setCandidateIndex(0); setInspectedSource("mine"); };
 
   async function importJson(files?: FileList | null) {
     if(!files?.length) return;
@@ -230,7 +235,7 @@ export default function Home() {
         </div>
       </header>
 
-      {view === "results" ? <Results candidates={candidates} reviews={reviews} teamReviews={teamReviews} queryId={queryId} queryName={queryProfile.name} intent={intent} evaluator={evaluator} llmRuns={llmRuns} onOpenCandidate={id=>{const index=candidates.findIndex(c=>c.id===id);if(index>=0){setCandidateIndex(index);setView("review")}}} /> : <>
+      {view === "results" ? <Results candidates={candidates} reviews={reviews} teamReviews={teamReviews} queryId={queryId} queryName={queryProfile.name} intent={intent} evaluator={evaluator} llmRuns={llmRuns} onOpenCandidate={(id,sourceId)=>{const index=candidates.findIndex(c=>c.id===id);if(index>=0){setCandidateIndex(index);setInspectedSource(sourceId);setView("review")}}} /> : <>
         <section className="scenario">
           <div className="step-label">01 · SET THE SCENARIO</div>
           <div className="scenario-grid">
@@ -245,7 +250,7 @@ export default function Home() {
             <div className="progress"><i style={{width:`${completed/candidates.length*100}%`}}/></div>
             <div className="candidate-list">{candidates.map((c,i)=>{
               const score=reviews[`${queryId}:${c.id}:${intent}`]?.overall;
-              return <button key={c.id} className={i===candidateIndex?"active":""} onClick={()=>setCandidateIndex(i)}><span className="avatar">{avatarNumber(c.name)}</span><span><b>{c.name}</b><small>{c.role}</small></span>{score===undefined?<em>—</em>:<em className="score">{score}</em>}</button>
+              return <button key={c.id} className={i===candidateIndex?"active":""} onClick={()=>{setCandidateIndex(i);setInspectedSource("mine")}}><span className="avatar">{avatarNumber(c.name)}</span><span><b>{c.name}</b><small>{c.role}</small></span>{score===undefined?<em>—</em>:<em className="score">{score}</em>}</button>
             })}</div>
           </aside>
 
@@ -259,6 +264,7 @@ export default function Home() {
 
           <aside className="rating-panel">
             <div className="step-label">03 · SCORE THE FIT</div>
+            {inspectedSource!=="mine" ? <div className="readonly-review"><div className="review-source"><span>正在查看</span><b>{inspectedLabel}</b><em>只读</em></div>{inspectedReview?<><div className="readonly-overall"><span>Overall Fit</span><strong>{inspectedReview.overall ?? "—"}<small>/ 3</small></strong></div><div className="readonly-dims">{[["Intent Fit",inspectedReview.intent],["Interaction",inspectedReview.interaction],["Context",inspectedReview.context],["Mutuality",inspectedReview.mutuality]].map(([label,value])=><div key={String(label)}><span>{label}</span><b>{value ?? "—"}</b></div>)}</div><div className="readonly-reason"><span>评分理由</span><p>{inspectedReview.reason||"未填写理由"}</p></div><div className="readonly-uncertainty"><span>不确定性</span><b>{inspectedReview.uncertainty}</b></div></>:<p className="no-scores">这个评分来源还没有评价该候选人</p>}<button className="dark switch-mine" onClick={()=>setInspectedSource("mine")}>切换到我的评分 →</button></div> : <>
             <h2>Overall fit</h2><p className="helper">这位候选人对当前需求的整体适配度？</p>
             <div className="scale">{[0,1,2,3].map(n=><button key={n} className={review.overall===n?"selected":""} onClick={()=>update({overall:n})}><b>{n}</b><span>{["不合适","偏弱","不错","很匹配"][n]}</span></button>)}</div>
             <button className="dimensions-toggle" onClick={()=>setShowDims(!showDims)}><span>子维度评分 <small>可选</small></span><b>{showDims?"−":"+"}</b></button>
@@ -266,6 +272,7 @@ export default function Home() {
             <label className="reason"><span>为什么？ <small>建议填写</small></span><textarea placeholder="写下支持判断的关键信号或矛盾点…" value={review.reason} onChange={e=>update({reason:e.target.value})}/><em>{review.reason.length}/280</em></label>
             <div className="uncertainty"><span>判断不确定性</span><div>{(["low","medium","high"] as const).map((u,i)=><button key={u} className={review.uncertainty===u?"selected":""} onClick={()=>update({uncertainty:u})}>{["低","中","高"][i]}</button>)}</div></div>
             <button className="next" disabled={review.overall===undefined} onClick={()=>{if(candidateIndex<candidates.length-1)setCandidateIndex(candidateIndex+1);else{notify("本轮评审已完成");setView("results")}}}>{candidateIndex<candidates.length-1?"保存并看下一个 →":"完成评审 →"}</button>
+            </>}
           </aside>
         </div>
       </>}
@@ -290,7 +297,7 @@ function PersonCard({profile,side,relevanceIntent}:{profile:Profile;side:"query"
   </article>
 }
 
-function Results({candidates,reviews,teamReviews,queryId,queryName,intent,evaluator,llmRuns,onOpenCandidate}:{candidates:Profile[];reviews:Record<string,Review>;teamReviews:TeamReview[];queryId:string;queryName:string;intent:string;evaluator:Evaluator|null;llmRuns:LLMRun[];onOpenCandidate:(id:string)=>void}) {
+function Results({candidates,reviews,teamReviews,queryId,queryName,intent,evaluator,llmRuns,onOpenCandidate}:{candidates:Profile[];reviews:Record<string,Review>;teamReviews:TeamReview[];queryId:string;queryName:string;intent:string;evaluator:Evaluator|null;llmRuns:LLMRun[];onOpenCandidate:(id:string,sourceId:string)=>void}) {
   const llmRun=llmRuns.find(run=>run.query_user_id===queryName);
   const evaluatorOptions=Array.from(new Map(teamReviews.filter(r=>r.queryId===queryId).map(r=>[r.evaluatorId,{id:r.evaluatorId,name:r.evaluatorName}])).values());
   const sources=[{id:"mine",name:"我的评分",kind:"human"},{id:"llm",name:"LLM 评分",kind:"llm"},...evaluatorOptions.filter(x=>x.id!==evaluator?.id).map(x=>({id:`person:${x.id}`,name:x.name,kind:"human"}))];
@@ -306,6 +313,6 @@ function Results({candidates,reviews,teamReviews,queryId,queryName,intent,evalua
   return <section className="results-page parallel-page">
     <div className="results-title"><div><div className="step-label">PARALLEL EVALUATION</div><h1>多评审结果对比</h1><p>选择最多 4 个评分来源并排查看 · 点击候选人进入 Profile</p></div><button className="dark export-top" onClick={exportSelected}>导出当前对比 JSON ↓</button></div>
     <div className="source-picker">{sources.map(source=><label key={source.id} className={selected.includes(source.id)?"checked":""}><input type="checkbox" checked={selected.includes(source.id)} disabled={!selected.includes(source.id)&&selected.length>=4} onChange={()=>toggle(source.id)}/><span>{source.name}</span><small>{selected.includes(source.id)?"已显示":selected.length>=4?"最多 4 个":"点击添加"}</small></label>)}</div>
-    <div className="parallel-windows" style={{gridTemplateColumns:`repeat(${Math.max(1,selected.length)},minmax(280px,1fr))`}}>{selected.map(sourceId=>{const source=sources.find(s=>s.id===sourceId);const data=panelData(sourceId);return <article className="score-window" key={sourceId}><header><div><span>{source?.kind==="llm"?"MODEL JUDGE":"HUMAN JUDGE"}</span><h2>{source?.name}</h2></div><strong>{data.length} 条</strong></header><div className="score-window-list">{data.length?data.map((row:any,index)=><button key={row.candidate?.id||row.llm?.candidate_id||index} onClick={()=>row.candidate&&onOpenCandidate(row.candidate.id)}><b>#{index+1}</b><span className="avatar">{avatarNumber(row.candidate?.name||row.llm?.candidate_id||"")}</span><div><strong>{row.candidate?.name||row.llm?.candidate_id}</strong><small>{row.reason}</small></div><em>{row.score}/3</em></button>):<p className="no-scores">当前场景还没有评分</p>}</div></article>})}</div>
+    <div className="parallel-windows" style={{gridTemplateColumns:`repeat(${Math.max(1,selected.length)},minmax(280px,1fr))`}}>{selected.map(sourceId=>{const source=sources.find(s=>s.id===sourceId);const data=panelData(sourceId);return <article className="score-window" key={sourceId}><header><div><span>{source?.kind==="llm"?"MODEL JUDGE":"HUMAN JUDGE"}</span><h2>{source?.name}</h2></div><strong>{data.length} 条</strong></header><div className="score-window-list">{data.length?data.map((row:any,index)=><button key={row.candidate?.id||row.llm?.candidate_id||index} onClick={()=>row.candidate&&onOpenCandidate(row.candidate.id,sourceId)}><b>#{index+1}</b><span className="avatar">{avatarNumber(row.candidate?.name||row.llm?.candidate_id||"")}</span><div><strong>{row.candidate?.name||row.llm?.candidate_id}</strong><small>{row.reason}</small></div><em>{row.score}/3</em></button>):<p className="no-scores">当前场景还没有评分</p>}</div></article>})}</div>
   </section>
 }
