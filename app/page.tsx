@@ -145,7 +145,6 @@ export default function Home() {
   const [reviews, setReviews] = useState<Record<string, Review>>({});
   const [showDims, setShowDims] = useState(true);
   const [view, setView] = useState<"review"|"results">("review");
-  const [comparison, setComparison] = useState<"A"|"B"|"tie"|null>(null);
   const [toast, setToast] = useState("");
   const [evaluator, setEvaluator] = useState<Evaluator|null>(null);
   const [teamReviews, setTeamReviews] = useState<TeamReview[]>([]);
@@ -188,7 +187,7 @@ export default function Home() {
       }).catch(()=>notify("评分同步失败，请重试"));
   };
   const notify = (text:string) => { setToast(text); window.setTimeout(()=>setToast(""),1800); };
-  const changeQuery = (id:string) => { setQueryId(id); setCandidateIndex(0); setComparison(null); };
+  const changeQuery = (id:string) => { setQueryId(id); setCandidateIndex(0); };
 
   async function importJson(files?: FileList | null) {
     if(!files?.length) return;
@@ -228,7 +227,7 @@ export default function Home() {
         </div>
       </header>
 
-      {view === "results" ? <Results candidates={candidates} reviews={reviews} teamReviews={teamReviews} queryId={queryId} intent={intent} comparison={comparison} /> : <>
+      {view === "results" ? <Results candidates={candidates} reviews={reviews} teamReviews={teamReviews} queryId={queryId} intent={intent} evaluator={evaluator} /> : <>
         <section className="scenario">
           <div className="step-label">01 · SET THE SCENARIO</div>
           <div className="scenario-grid">
@@ -245,14 +244,13 @@ export default function Home() {
               const score=reviews[`${queryId}:${c.id}:${intent}`]?.overall;
               return <button key={c.id} className={i===candidateIndex?"active":""} onClick={()=>setCandidateIndex(i)}><span className="avatar">{avatarNumber(c.name)}</span><span><b>{c.name}</b><small>{c.role}</small></span>{score===undefined?<em>—</em>:<em className="score">{score}</em>}</button>
             })}</div>
-            <div className="blind-card"><span>BLIND COMPARISON</span><b>Method A vs Method B</b><p>方法身份会在提交后揭晓，减少先入为主。</p><div className="ab-row">{(["A","B","tie"] as const).map(x=><button key={x} className={comparison===x?"picked":""} onClick={()=>setComparison(x)}>{x==="tie"?"持平":x}</button>)}</div></div>
           </aside>
 
           <section className="profile-panel compare-panel">
             <div className="compare-title"><span>QUERY USER</span><i>判断两个人在当前 intent 下是否合适</i><span>CANDIDATE {candidateIndex+1}/{candidates.length}</span></div>
             <div className="compare-profiles">
               <PersonCard profile={queryProfile} side="query" relevanceIntent={intent} />
-              <PersonCard profile={candidate} side="candidate" relevanceIntent={intent} method={candidateIndex%2?"B":"A"} />
+              <PersonCard profile={candidate} side="candidate" relevanceIntent={intent} />
             </div>
           </section>
 
@@ -273,13 +271,13 @@ export default function Home() {
   );
 }
 
-function PersonCard({profile,side,method,relevanceIntent}:{profile:Profile;side:"query"|"candidate";method?:string;relevanceIntent:string}) {
+function PersonCard({profile,side,relevanceIntent}:{profile:Profile;side:"query"|"candidate";relevanceIntent:string}) {
   const genderLabel = profile.gender==="female"?"女":profile.gender==="male"?"男":profile.gender || "未提供";
   const domainEntries=Object.entries(profile.domainSummaries || {});
   const domainOverview=profile.bio || domainEntries.slice(0,2).map(([,value])=>value).join(" ");
   const assertions=relevantAssertions(profile.assertions || [],relevanceIntent);
   return <article className={`person-card ${side}`}>
-    <div className="person-label">{side==="query"?"需求发起者":"候选对象"}{method&&<em>METHOD {method}</em>}</div>
+    <div className="person-label">{side==="query"?"需求发起者":"候选对象"}</div>
     <div className="profile-head"><span className="avatar large">{avatarNumber(profile.name)}</span><div><h1>{profile.name}</h1><p>{side==="query"?"Query User":"Candidate"}</p></div></div>
     <div className="basic-info"><div><span>性别</span><b>{genderLabel}</b></div><div><span>年龄</span><b>{profile.age?`${profile.age} 岁`:"未提供"}</b></div><div><span>职业</span><b>{profile.role&&profile.role!=="—"?profile.role:"未提供"}</b></div></div>
     <div className="profile-intent"><span>{side==="query"?"QUERY SOCIAL INTENT":"CANDIDATE SOCIAL INTENT"}</span><p>“{profile.intent || (side==="query"?"该用户没有提供 Current_Social_Intent":"该候选对象没有提供 Current_Social_Intent")}”</p></div>
@@ -289,14 +287,12 @@ function PersonCard({profile,side,method,relevanceIntent}:{profile:Profile;side:
   </article>
 }
 
-function Results({candidates,reviews,teamReviews,queryId,intent,comparison}:{candidates:Profile[];reviews:Record<string,Review>;teamReviews:TeamReview[];queryId:string;intent:string;comparison:"A"|"B"|"tie"|null}) {
-  const rows=candidates.map((c,i)=>({c, method:i%2?"B":"A", r:reviews[`${queryId}:${c.id}:${intent}`]})).filter(x=>x.r?.overall!==undefined).sort((a,b)=>(b.r.overall||0)-(a.r.overall||0));
-  const stats=(method:string)=>{const xs=rows.filter(x=>x.method===method);return {n:xs.length,avg:xs.length?xs.reduce((s,x)=>s+(x.r.overall||0),0)/xs.length:0,top:rows.slice(0,3).filter(x=>x.method===method).length}};
-  const a=stats("A"),b=stats("B");
+function Results({candidates,reviews,teamReviews,queryId,intent,evaluator}:{candidates:Profile[];reviews:Record<string,Review>;teamReviews:TeamReview[];queryId:string;intent:string;evaluator:Evaluator|null}) {
+  const rows=candidates.map(c=>({c,r:reviews[`${queryId}:${c.id}:${intent}`]})).filter(x=>x.r?.overall!==undefined).sort((a,b)=>(b.r.overall||0)-(a.r.overall||0));
+  const average=rows.length?rows.reduce((sum,row)=>sum+(row.r.overall||0),0)/rows.length:0;
   const evaluatorCount = new Set(teamReviews.map(r=>r.evaluatorId)).size;
-  return <section className="results-page"><div className="results-title"><div><div className="step-label">EVALUATION SUMMARY</div><h1>哪种方法更接近人的判断？</h1><p>当前场景的方向性结果 · 完成 {rows.length}/{candidates.length} 位候选人</p></div><div className="winner">盲测偏好<strong>{comparison?comparison==="tie"?"持平":`Method ${comparison}`:"尚未选择"}</strong></div></div>
-    <div className="method-cards"><article><span>METHOD A</span><h2>{a.avg.toFixed(1)}<small>/ 3 平均人工分</small></h2><div><b>{a.top}</b> 人进入人工 Top 3 <i style={{width:`${a.avg/3*100}%`}}/></div></article><article className="accent"><span>METHOD B</span><h2>{b.avg.toFixed(1)}<small>/ 3 平均人工分</small></h2><div><b>{b.top}</b> 人进入人工 Top 3 <i style={{width:`${b.avg/3*100}%`}}/></div></article></div>
-    <div className="results-grid"><article className="ranking"><div className="table-head"><b>我的人工排序</b><span>OVERALL FIT</span></div>{rows.map((x,i)=><div className="result-row" key={x.c.id}><strong>{i+1}</strong><span className="avatar">{avatarNumber(x.c.name)}</span><div><b>{x.c.name}</b><small>{x.c.role}</small></div><em>Method {x.method}</em><span className="dots">{[0,1,2,3].map(n=><i key={n} className={(x.r.overall||0)>=n&&n>0?"on":""}/>)}</span><strong className="num">{x.r.overall}</strong></div>)}</article><article className="readout"><span>HOW TO READ THIS</span><h3>先看方向，不下结论。</h3><p>样本量适合判断 Matching Persona 是否值得继续验证，不足以证明真实产品效果。</p><ul><li>比较两种方法的平均人工分</li><li>观察人工 Top 3 中的方法分布</li><li>结合不同 evaluator 的判断与理由</li></ul><button onClick={()=>{const payload={schemaVersion:"matchlab-evaluation-v1",exportedAt:new Date().toISOString(),queryUserId:queryId,currentSocialIntent:intent,blindPreference:comparison,candidateProfiles:candidates,reviews:teamReviews};const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`matchlab-${queryId}-results.json`;a.click();URL.revokeObjectURL(url)}}>导出 JSON 结果 ↓</button></article></div>
+  return <section className="results-page"><div className="results-title"><div><div className="step-label">MY EVALUATION SUMMARY</div><h1>我的人工匹配评分</h1><p>当前场景已完成 {rows.length}/{candidates.length} 位候选人</p></div><div className="winner">平均 Overall Fit<strong>{average.toFixed(1)} / 3</strong></div></div>
+    <div className="results-grid"><article className="ranking"><div className="table-head"><b>我的人工排序</b><span>OVERALL FIT</span></div>{rows.map((x,i)=><div className="result-row manual" key={x.c.id}><strong>{i+1}</strong><span className="avatar">{avatarNumber(x.c.name)}</span><div><b>{x.c.name}</b><small>{x.r.reason||"未填写理由"}</small></div><span className="dots">{[0,1,2,3].map(n=><i key={n} className={(x.r.overall||0)>=n&&n>0?"on":""}/>)}</span><strong className="num">{x.r.overall}</strong></div>)}</article><article className="readout"><span>MY EXPORT</span><h3>导出我的人工判断</h3><p>JSON 只包含你在当前 Query 和 Social Intent 下提交的评分、理由和不确定性。</p><ul><li>Overall Fit 0–3</li><li>四个可选子维度</li><li>评分理由与不确定性</li></ul><button onClick={()=>{const payload={schemaVersion:"matchlab-human-evaluation-v2",exportedAt:new Date().toISOString(),evaluator:evaluator?{id:evaluator.id,name:evaluator.name,email:evaluator.email}:null,queryUserId:queryId,currentSocialIntent:intent,evaluations:rows.map(({c,r},rank)=>({rank:rank+1,candidateId:c.id,candidateName:c.name,overallFit:r.overall,intentFit:r.intent??null,interactionCompatibility:r.interaction??null,contextFit:r.context??null,mutuality:r.mutuality??null,reason:r.reason,uncertainty:r.uncertainty}))};const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`matchlab-${queryId}-my-evaluation.json`;a.click();URL.revokeObjectURL(url)}}>导出我的评分 JSON ↓</button></article></div>
     <article className="team-log"><div className="table-head"><b>团队评分记录</b><span>{evaluatorCount} 位评审者</span></div>{teamReviews.filter(r=>r.queryId===queryId&&r.socialIntent===intent).slice(0,30).map((r,i)=>{const c=candidates.find(x=>x.id===r.candidateId);return <div className="team-row" key={`${r.evaluatorId}-${r.candidateId}-${i}`}><span className="reviewer">{r.evaluatorName.slice(0,1)}</span><div><b>{r.evaluatorName}</b><small>评价 {c?.name||r.candidateId}</small></div><strong>{r.overall ?? "—"}/3</strong><p>{r.reason||"未填写理由"}</p><time>{new Date(r.updatedAt).toLocaleString("zh-CN")}</time></div>})}</article>
   </section>
 }
