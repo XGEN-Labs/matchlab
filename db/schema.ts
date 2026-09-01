@@ -20,3 +20,10 @@ export const reviews = sqliteTable("reviews", {
 }, (table) => [
   uniqueIndex("idx_reviews_evaluator_pair_intent").on(table.evaluatorId, table.queryId, table.candidateId, table.intent),
 ]);
+
+export const llmRuns = sqliteTable("llm_runs", {
+  id: text("id").primaryKey(),
+  queryId: text("query_id").notNull(),
+  payload: text("payload").notNull(),
+  createdAt: integer("created_at").notNull(),
+});

@@ -1,0 +1,59 @@
+{
+  "schema_version": "matchlab-llm-evaluation-v1",
+  "generated_at": "2026-09-01T19:00:00+08:00",
+  "judge": "OpenAI Codex conversation model",
+  "query_user_id": "U01",
+  "query_social_intent": {
+    "primary_intent": "认识可以发展成朋友的人",
+    "secondary_intents": ["希望有一起参加活动的人", "对恋爱关系保持开放"],
+    "current_motivation": "秋招阶段生活被求职占满，希望认识一些和求职无关、能一起出去玩的人",
+    "hard_constraints": ["最好能够线下见面", "年龄差不要过大"],
+    "desired_traits": ["情绪相对稳定", "有自己的生活", "有趣", "愿意表达", "不要太拧巴"],
+    "shared_context": ["音乐", "展览", "城市活动", "互联网/创意行业"]
+  },
+  "rubric": {
+    "scale": {"0": "明显不合适", "1": "部分符合但有关键缺口", "2": "整体可尝试", "3": "高度契合"},
+    "dimensions": ["intent_fit", "interaction_compatibility", "context_fit", "mutuality"]
+  },
+  "ranking": [
+    {"rank":1,"candidate_id":"U05","overall_fit":3,"intent_fit":3,"interaction_compatibility":3,"context_fit":3,"mutuality":3,"reason":"文化兴趣、城市活动偏好和高分享欲都与U01高度匹配，双方都容易通过共同活动快速熟悉。年龄接近、行动意愿强，最适合从看展或Livehouse开始。","supporting_evidence":["U05喜欢动画、视觉设计、电影、展览和城市探索","U05高分享欲、容易熟络，并明确看重同城一起做事"],"conflicts":[],"uncertainty":"low"},
+    {"rank":2,"candidate_id":"U27","overall_fit":3,"intent_fit":3,"interaction_compatibility":2,"context_fit":3,"mutuality":3,"reason":"阅读、展览、Livehouse和独立电影与U01的活动语境高度重合，而且U27也明确缺少可临时参加文化活动的伙伴。慢热程度略高，但低压力共同活动能自然启动关系。","supporting_evidence":["U27周末常想找人临时参加文化活动","U27对新朋友开放且偏好有内容、低压力的交流"],"conflicts":["U27比U01年长约8岁，接近年龄约束的边缘"],"uncertainty":"low"},
+    {"rank":3,"candidate_id":"U15","overall_fit":3,"intent_fit":3,"interaction_compatibility":2,"context_fit":3,"mutuality":3,"reason":"展览、Livehouse和独立文化高度契合，双方都不是缺少朋友，而是缺少能一起行动的人。U15不喜欢从零经营陌生关系，但共同文化活动正好提供自然入口。","supporting_evidence":["U15喜欢阅读、展览、小酒吧和Livehouse","U15明确缺少生活阶段匹配、可随时行动的人"],"conflicts":["U15独处需求较高，互动频率可能低于U01期待"],"uncertainty":"low"},
+    {"rank":4,"candidate_id":"U22","overall_fit":3,"intent_fit":3,"interaction_compatibility":3,"context_fit":3,"mutuality":3,"reason":"双方都有高分享欲、快速熟悉和线下活动需求，互动反馈节奏非常接近。具体兴趣不完全相同，但攀岩、骑行、电影和咖啡足以形成可执行活动。","supporting_evidence":["U22快热、高分享欲并主动开启话题","U22当前有明确的本地活动朋友需求"],"conflicts":["U22需要高频及时回应，可能在U01秋招忙碌期形成压力"],"uncertainty":"low"},
+    {"rank":5,"candidate_id":"U26","overall_fit":3,"intent_fit":3,"interaction_compatibility":3,"context_fit":3,"mutuality":3,"reason":"U26快热、执行型，周末也常临时想出门，和U01寻找城市活动搭子的底层需求高度一致。Citywalk、探店和偶尔露营能直接转化为第一次见面。","supporting_evidence":["U26喜欢城市散步、探店和桌游","U26明确不喜欢只聊不做，当前本地社交需求明确"],"conflicts":["音乐和展览不是U26的主要兴趣"],"uncertainty":"low"},
+    {"rank":6,"candidate_id":"U25","overall_fit":3,"intent_fit":3,"interaction_compatibility":3,"context_fit":3,"mutuality":3,"reason":"双方都愿意周末出门、重视新鲜体验，并需要一个能把计划真正执行的人。虽然U25偏旅行、海边和潜水，但其探索欲与行动节奏很适合U01。","supporting_evidence":["U25快热、活动型，有具体计划时行动快","U25需要稳定的共同执行者并对低压力连接开放"],"conflicts":["核心兴趣与U01的音乐和展览只有部分重合"],"uncertainty":"low"},
+    {"rank":7,"candidate_id":"U10","overall_fit":2,"intent_fit":3,"interaction_compatibility":3,"context_fit":3,"mutuality":3,"reason":"U10当前最明确的缺口也是缺少一起行动的人，愿意出门且面对具体活动行动很快。活动兴趣更偏旅行、水上和摄影，但摄影与城市探索可形成交集。","supporting_evidence":["U10缺少同行者时周末计划容易取消","U10不希望第一次见面采用正式约会框架"],"conflicts":["文化活动偏好不如Top候选直接"],"uncertainty":"low"},
+    {"rank":8,"candidate_id":"U21","overall_fit":2,"intent_fit":3,"interaction_compatibility":2,"context_fit":3,"mutuality":3,"reason":"U21有明确的本地活动朋友需求，周末会参加户外或文化活动，独立电影和咖啡也能与U01衔接。主要风险是U21慢热、低表达，不喜欢持续闲聊，与U01高分享欲存在节奏差。","supporting_evidence":["U21喜欢攀岩、骑行、独立电影和咖啡","U21慢热但不排斥新关系"],"conflicts":["低频沟通与U01的分享欲可能不匹配"],"uncertainty":"low"},
+    {"rank":9,"candidate_id":"U23","overall_fit":2,"intent_fit":2,"interaction_compatibility":2,"context_fit":3,"mutuality":3,"reason":"纪录片、偶尔看展和咖啡可形成文化活动入口，U23也愿意认识能稳定深聊的人。她更慢热、偏小范围稳定关系，适合作为较慢建立的朋友，不是最轻松即时的活动搭子。","supporting_evidence":["U23喜欢纪录片、徒步、咖啡并偶尔看展","U23看重真诚和可讨论性"],"conflicts":["U23慢热理性，U01可能觉得启动速度偏慢"],"uncertainty":"medium"},
+    {"rank":10,"candidate_id":"U06","overall_fit":2,"intent_fit":2,"interaction_compatibility":2,"context_fit":3,"mutuality":2,"reason":"电影、咖啡馆餐厅和短途旅行与U01有一定体验型活动交集，U06也对低压力新关系开放。不过她正在重建生活并强化个人空间，主动性和互动密度可能有限。","supporting_evidence":["U06喜欢现实主义电影、咖啡馆餐厅和短途旅行","U06对新关系开放但不适合快速恋爱"],"conflicts":["U06通常先自己消化，表达节奏可能低于U01"],"uncertainty":"medium"},
+    {"rank":11,"candidate_id":"U02","overall_fit":2,"intent_fit":2,"interaction_compatibility":2,"context_fit":3,"mutuality":3,"reason":"U02也希望通过共同活动自然建立低压力关系，骑行和咖啡可作为入口，且现实朋友不在深圳。慢热、低频和强边界与U01的高分享欲存在明显节奏差。","supporting_evidence":["U02更容易通过骑行等共同活动建立关系","U02对新关系开放但需要自然、低压力的理由"],"conflicts":["U02慢热低频，U01外向且分享欲较高"],"uncertainty":"low"},
+    {"rank":12,"candidate_id":"U09","overall_fit":2,"intent_fit":2,"interaction_compatibility":2,"context_fit":2,"mutuality":2,"reason":"摇滚Live提供直接共同语境，桌游也能作为自然社交场景。U09不喜欢目的性强的networking，但专业表达直接、私人领域回避，且上线期时间压力较大。","supporting_evidence":["U09喜欢摇滚Live和桌游","U09更容易通过共同兴趣建立连接"],"conflicts":["工作高压期可参与性下降","私人表达偏回避"],"uncertainty":"medium"},
+    {"rank":13,"candidate_id":"U29","overall_fit":2,"intent_fit":2,"interaction_compatibility":1,"context_fit":3,"mutuality":3,"reason":"U29有明确活动朋友需求并坚持稳定线下见面，符合U01的线下硬约束。骑行、咖啡和科幻与U01文化活动重合有限，且低频深交风格可能不满足U01的表达需求。","supporting_evidence":["U29当前有明确活动朋友需求","U29不接受长期纯线上关系"],"conflicts":["低频深交与U01高分享欲不完全兼容","兴趣交集较少"],"uncertainty":"low"},
+    {"rank":14,"candidate_id":"U28","overall_fit":1,"intent_fit":2,"interaction_compatibility":2,"context_fit":1,"mutuality":0,"reason":"兴趣几乎完美重合，沟通也没有明显冲突，但U28项目期极忙，明确不想新增关系。Profile fit很高，当前mutual intent却不成立。","supporting_evidence":["U28喜欢阅读、展览、Livehouse和独立电影","U28温和且会聊天"],"conflicts":["U28空闲时间优先留给现有朋友和休息","当前不想新增关系"],"uncertainty":"low"},
+    {"rank":15,"candidate_id":"U14","overall_fit":1,"intent_fit":1,"interaction_compatibility":2,"context_fit":2,"mutuality":1,"reason":"年龄接近，设计和视觉文化能与U01的视觉艺术兴趣产生话题，但缺乏活动偏好、社交意愿和关系风格证据，无法确认是否愿意建立新关系。","supporting_evidence":["U14对设计和视觉文化有明确兴趣"],"conflicts":["普通社交需求和可参与性证据不足"],"uncertainty":"high"},
+    {"rank":16,"candidate_id":"U17","overall_fit":1,"intent_fit":1,"interaction_compatibility":1,"context_fit":2,"mutuality":1,"reason":"年龄接近且偶尔参加演唱会，存在最小兴趣交集，但整体Self Memory覆盖低，没有明确活动搭子需求或稳定互动风格证据。","supporting_evidence":["U17偶尔参加演唱会","U17目前在深圳生活且单身"],"conflicts":["社交风格、稳定兴趣和匹配意图证据不足"],"uncertainty":"high"},
+    {"rank":17,"candidate_id":"U30","overall_fit":1,"intent_fit":2,"interaction_compatibility":1,"context_fit":0,"mutuality":1,"reason":"U30有活动朋友需求且重视低频深交，但未来半年只接受线上交流，直接违反U01最好能够线下见面的硬约束。","supporting_evidence":["U30当前同样有活动朋友需求","U30兴趣和关系风格明确"],"conflicts":["未来半年只接受线上交流","互动频率偏低"],"uncertainty":"low"},
+    {"rank":18,"candidate_id":"U07","overall_fit":1,"intent_fit":1,"interaction_compatibility":1,"context_fit":2,"mutuality":1,"reason":"年龄接近，也可通过篮球等具体场景认识，但兴趣与U01重合较少，U07慢热偏宅且不主动扩展陌生关系。","supporting_evidence":["U07认为篮球场景比泛社交自然"],"conflicts":["不主动认识人","生活高度被科研占据"],"uncertainty":"medium"},
+    {"rank":19,"candidate_id":"U24","overall_fit":1,"intent_fit":1,"interaction_compatibility":1,"context_fit":2,"mutuality":2,"reason":"U24愿意认识能讨论职业和生活选择的人，但U01当前希望暂时离开求职语境、通过活动获得生活感。双方都愿意维持小范围关系，但兴趣和互动目标错位。","supporting_evidence":["U24愿意认识能讨论职业和生活选择的人"],"conflicts":["社交主题偏职业，与U01当前动机相反","年龄差约8岁"],"uncertainty":"medium"},
+    {"rank":20,"candidate_id":"U11","overall_fit":1,"intent_fit":1,"interaction_compatibility":1,"context_fit":2,"mutuality":1,"reason":"看展提供有限共同点，但U11当前注意力仍被前任关系占据，且社交风格与新关系需求证据不足，不适合做优先活动搭子。","supporting_evidence":["U11会看展"],"conflicts":["当前情绪受前任明显影响","普通社交画像不足"],"uncertainty":"high"},
+    {"rank":21,"candidate_id":"U18","overall_fit":1,"intent_fit":0,"interaction_compatibility":1,"context_fit":2,"mutuality":0,"reason":"年龄相近，但现有画像几乎只覆盖考试和升学，没有共同兴趣、活动偏好或主动社交需求证据。","supporting_evidence":["U18住校且年龄与U01接近"],"conflicts":["兴趣和Social Style证据明显不足","没有主动匹配需求"],"uncertainty":"high"},
+    {"rank":22,"candidate_id":"U04","overall_fit":1,"intent_fit":0,"interaction_compatibility":1,"context_fit":1,"mutuality":1,"reason":"AI、跑步和策略游戏与U01的活动语境重合有限，U04处于创业高压状态，更需要高效解决具体创业问题的同阶段伙伴。","supporting_evidence":["U04关注AI、教育产品和跑步"],"conflicts":["创业占据生活核心","对低效沟通耐受度低"],"uncertainty":"low"},
+    {"rank":23,"candidate_id":"U12","overall_fit":1,"intent_fit":0,"interaction_compatibility":1,"context_fit":1,"mutuality":1,"reason":"仅有羽毛球这一弱活动入口，其画像和需求主要围绕职业转型及结构化问题解决，无法支持轻松文化活动朋友的判断。","supporting_evidence":["U12偶尔打羽毛球"],"conflicts":["普通朋友偏好证据不足","工作时间较长"],"uncertainty":"high"},
+    {"rank":24,"candidate_id":"U31","overall_fit":1,"intent_fit":0,"interaction_compatibility":1,"context_fit":1,"mutuality":1,"reason":"跑步、科技产品和咖啡与U01只有弱交集，U31当前需要的是有转型经验的职业同伴，不是求职之外的活动连接。","supporting_evidence":["U31喜欢跑步和咖啡"],"conflicts":["核心意图是职业转型同行","年龄差约9岁"],"uncertainty":"low"},
+    {"rank":25,"candidate_id":"U32","overall_fit":0,"intent_fit":0,"interaction_compatibility":1,"context_fit":1,"mutuality":0,"reason":"兴趣只有咖啡这一弱交点，工作强度高且当前投入内部项目，没有新增职业同行或活动朋友的明确需求。","supporting_evidence":["U32喜欢跑步、科技产品和咖啡"],"conflicts":["当前没有相应社交缺口","年龄差约9岁"],"uncertainty":"medium"},
+    {"rank":26,"candidate_id":"U20","overall_fit":0,"intent_fit":0,"interaction_compatibility":0,"context_fit":0,"mutuality":0,"reason":"U20处于晋升失败后的情绪峰值，当前适合高度相关的职业支持，不适合进入轻松活动匹配；年龄和生活阶段差距也较大。","supporting_evidence":["U20偶尔跑步"],"conflicts":["高强度愤怒与失望","当前推荐应限定职业同伴","年龄差约9岁"],"uncertainty":"low"},
+    {"rank":27,"candidate_id":"U16","overall_fit":0,"intent_fit":0,"interaction_compatibility":1,"context_fit":1,"mutuality":0,"reason":"现有信息高度集中于命理兴趣，没有共同文化活动、社交风格或主动认识新人需求的证据。","supporting_evidence":["U16对传统命理有稳定兴趣"],"conflicts":["整体人格和生活方式覆盖严重不足","没有主动认识新人的需求"],"uncertainty":"high"},
+    {"rank":28,"candidate_id":"U19","overall_fit":0,"intent_fit":0,"interaction_compatibility":1,"context_fit":1,"mutuality":0,"reason":"画像存在明显第三方信息污染，自身兴趣、生活方式和社交需求证据不足，无法支持可靠匹配。","supporting_evidence":["U19喜欢命理内容"],"conflicts":["用户自身Self Memory覆盖低","没有扩大社交圈的证据"],"uncertainty":"high"},
+    {"rank":29,"candidate_id":"U03","overall_fit":0,"intent_fit":0,"interaction_compatibility":1,"context_fit":1,"mutuality":0,"reason":"U03已有伴侣和稳定核心关系，当前重心是工作、伴侣与未来安排，对陌生人社交即时需求低，与U01活动搭子动机不匹配。","supporting_evidence":["U03理性分析能力较强"],"conflicts":["已有稳定伴侣","陌生人社交需求低"],"uncertainty":"low"},
+    {"rank":30,"candidate_id":"U08","overall_fit":0,"intent_fit":0,"interaction_compatibility":1,"context_fit":1,"mutuality":0,"reason":"U08生活结构稳定，周末主要与丈夫或在家度过，主动扩圈需求低；安静居家偏好也与U01外出文化活动需求差异较大。","supporting_evidence":["U08喜欢植物和安静居家体验"],"conflicts":["主动扩圈需求低","周末可参与性有限"],"uncertainty":"low"},
+    {"rank":31,"candidate_id":"U13","overall_fit":0,"intent_fit":0,"interaction_compatibility":1,"context_fit":1,"mutuality":0,"reason":"U13已有稳定伴侣，当前社交需要应服务于重大人生决策，而不是泛社交扩圈；兴趣和生活方式证据也不足。","supporting_evidence":["U13重视自主选择"],"conflicts":["已有稳定伴侣","当前没有活动朋友需求证据"],"uncertainty":"low"}
+  ],
+  "summary": {
+    "top_1": "U05",
+    "top_3": ["U05", "U27", "U15"],
+    "top_5": ["U05", "U27", "U15", "U22", "U26"],
+    "key_pattern": "最高分候选同时具备可执行的线下活动需求、文化或城市活动交集、对新关系的双向开放，以及与U01相近的表达节奏。",
+    "largest_false_positive_risk": "U28的兴趣高度相似，但当前不愿新增关系，说明只看兴趣相似度会高估匹配。",
+    "limitations": ["这是单次LLM离线判断，不代表真实互动结果", "未观察真实回复率、邀约接受率或线下体验", "0-3分属于方向性评价，应与多位人工评审比较"]
+  }
+}

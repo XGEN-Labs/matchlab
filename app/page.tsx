@@ -16,6 +16,8 @@ type Review = {
 };
 type Evaluator = { id:string; name:string; email:string };
 type TeamReview = Review & { evaluatorId:string; evaluatorName:string; queryId:string; candidateId:string; socialIntent:string; updatedAt:number };
+type LLMRow = { rank:number; candidate_id:string; overall_fit:number; intent_fit:number; interaction_compatibility:number; context_fit:number; mutuality:number; reason:string; supporting_evidence:string[]; conflicts:string[]; uncertainty:string };
+type LLMRun = { schema_version:string; generated_at:string; judge:string; query_user_id:string; ranking:LLMRow[]; summary:{top_1:string;top_3:string[];top_5:string[];key_pattern:string;largest_false_positive_risk:string;limitations:string[]} };
 
 const seedProfiles: Profile[] = [
   { id:"maya", name:"Maya Chen", age:28, city:"Shanghai", role:"Product designer", bio:"Designing calm digital tools. I like small groups, long walks and conversations that wander into unexpected places.", tags:["urban hiking","indie films","coffee","design"], availability:"Weekend mornings", interaction:"Warm, curious · prefers 1:1" },
@@ -148,6 +150,7 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const [evaluator, setEvaluator] = useState<Evaluator|null>(null);
   const [teamReviews, setTeamReviews] = useState<TeamReview[]>([]);
+  const [llmRuns, setLlmRuns] = useState<LLMRun[]>([]);
   const [syncing, setSyncing] = useState(true);
   const [access, setAccess] = useState<boolean|null>(null);
   const [password, setPassword] = useState("");
@@ -165,7 +168,7 @@ export default function Home() {
   useEffect(() => {
     fetch("/api/state").then(r=>{if(r.status===403){setAccess(false);throw new Error("access")};if(r.status===401){window.location.href="/signin-with-chatgpt?return_to=%2F";throw new Error("signin")};return r.ok?r.json():Promise.reject()}).then(data=>{
       setAccess(true);
-      setEvaluator(data.evaluator); setTeamReviews(data.reviews || []);
+      setEvaluator(data.evaluator); setTeamReviews(data.reviews || []); setLlmRuns(data.llmRuns || []);
       if(data.profiles?.length){
         const sharedProfiles=data.profiles.map((p:Profile,i:number)=>({...p,name:userLabel(i)}));
         setProfiles(sharedProfiles); setQueryId(sharedProfiles[0].id); setIntent(sharedProfiles[0].intent || "该用户没有提供 Current_Social_Intent");
@@ -227,7 +230,7 @@ export default function Home() {
         </div>
       </header>
 
-      {view === "results" ? <Results candidates={candidates} reviews={reviews} teamReviews={teamReviews} queryId={queryId} intent={intent} evaluator={evaluator} /> : <>
+      {view === "results" ? <Results candidates={candidates} reviews={reviews} teamReviews={teamReviews} queryId={queryId} queryName={queryProfile.name} intent={intent} evaluator={evaluator} llmRuns={llmRuns} /> : <>
         <section className="scenario">
           <div className="step-label">01 · SET THE SCENARIO</div>
           <div className="scenario-grid">
@@ -287,12 +290,14 @@ function PersonCard({profile,side,relevanceIntent}:{profile:Profile;side:"query"
   </article>
 }
 
-function Results({candidates,reviews,teamReviews,queryId,intent,evaluator}:{candidates:Profile[];reviews:Record<string,Review>;teamReviews:TeamReview[];queryId:string;intent:string;evaluator:Evaluator|null}) {
+function Results({candidates,reviews,teamReviews,queryId,queryName,intent,evaluator,llmRuns}:{candidates:Profile[];reviews:Record<string,Review>;teamReviews:TeamReview[];queryId:string;queryName:string;intent:string;evaluator:Evaluator|null;llmRuns:LLMRun[]}) {
   const rows=candidates.map(c=>({c,r:reviews[`${queryId}:${c.id}:${intent}`]})).filter(x=>x.r?.overall!==undefined).sort((a,b)=>(b.r.overall||0)-(a.r.overall||0));
   const average=rows.length?rows.reduce((sum,row)=>sum+(row.r.overall||0),0)/rows.length:0;
   const evaluatorCount = new Set(teamReviews.map(r=>r.evaluatorId)).size;
+  const llmRun=llmRuns.find(run=>run.query_user_id===queryName);
   return <section className="results-page"><div className="results-title"><div><div className="step-label">MY EVALUATION SUMMARY</div><h1>我的人工匹配评分</h1><p>当前场景已完成 {rows.length}/{candidates.length} 位候选人</p></div><div className="winner">平均 Overall Fit<strong>{average.toFixed(1)} / 3</strong></div></div>
     <div className="results-grid"><article className="ranking"><div className="table-head"><b>我的人工排序</b><span>OVERALL FIT</span></div>{rows.map((x,i)=><div className="result-row manual" key={x.c.id}><strong>{i+1}</strong><span className="avatar">{avatarNumber(x.c.name)}</span><div><b>{x.c.name}</b><small>{x.r.reason||"未填写理由"}</small></div><span className="dots">{[0,1,2,3].map(n=><i key={n} className={(x.r.overall||0)>=n&&n>0?"on":""}/>)}</span><strong className="num">{x.r.overall}</strong></div>)}</article><article className="readout"><span>MY EXPORT</span><h3>导出我的人工判断</h3><p>JSON 只包含你在当前 Query 和 Social Intent 下提交的评分、理由和不确定性。</p><ul><li>Overall Fit 0–3</li><li>四个可选子维度</li><li>评分理由与不确定性</li></ul><button onClick={()=>{const payload={schemaVersion:"matchlab-human-evaluation-v2",exportedAt:new Date().toISOString(),evaluator:evaluator?{id:evaluator.id,name:evaluator.name,email:evaluator.email}:null,queryUserId:queryId,currentSocialIntent:intent,evaluations:rows.map(({c,r},rank)=>({rank:rank+1,candidateId:c.id,candidateName:c.name,overallFit:r.overall,intentFit:r.intent??null,interactionCompatibility:r.interaction??null,contextFit:r.context??null,mutuality:r.mutuality??null,reason:r.reason,uncertainty:r.uncertainty}))};const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`matchlab-${queryId}-my-evaluation.json`;a.click();URL.revokeObjectURL(url)}}>导出我的评分 JSON ↓</button></article></div>
+    {llmRun&&<article className="llm-results"><div className="llm-heading"><div><span>LLM EVALUATION · {llmRun.judge}</span><h2>U01 的模型匹配排序</h2><p>{llmRun.summary.key_pattern}</p></div><strong>Top 1<br/><b>{llmRun.summary.top_1}</b></strong></div><div className="llm-list">{llmRun.ranking.map(item=><details key={item.candidate_id}><summary><b>#{item.rank}</b><span className="avatar">{avatarNumber(item.candidate_id)}</span><div><strong>{item.candidate_id}</strong><small>{item.reason}</small></div><em>{item.overall_fit}/3</em></summary><div className="llm-detail"><div className="llm-dims"><span>Intent <b>{item.intent_fit}</b></span><span>Interaction <b>{item.interaction_compatibility}</b></span><span>Context <b>{item.context_fit}</b></span><span>Mutuality <b>{item.mutuality}</b></span></div><p><b>支持证据</b>{item.supporting_evidence.join(" · ")}</p>{item.conflicts.length>0&&<p><b>冲突与风险</b>{item.conflicts.join(" · ")}</p>}<small>不确定性：{item.uncertainty}</small></div></details>)}</div></article>}
     <article className="team-log"><div className="table-head"><b>团队评分记录</b><span>{evaluatorCount} 位评审者</span></div>{teamReviews.filter(r=>r.queryId===queryId&&r.socialIntent===intent).slice(0,30).map((r,i)=>{const c=candidates.find(x=>x.id===r.candidateId);return <div className="team-row" key={`${r.evaluatorId}-${r.candidateId}-${i}`}><span className="reviewer">{r.evaluatorName.slice(0,1)}</span><div><b>{r.evaluatorName}</b><small>评价 {c?.name||r.candidateId}</small></div><strong>{r.overall ?? "—"}/3</strong><p>{r.reason||"未填写理由"}</p><time>{new Date(r.updatedAt).toLocaleString("zh-CN")}</time></div>})}</article>
   </section>
 }
