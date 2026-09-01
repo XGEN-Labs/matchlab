@@ -232,6 +232,7 @@ function PersonCard({profile,side,method}:{profile:Profile;side:"query"|"candida
   return <article className={`person-card ${side}`}>
     <div className="person-label">{side==="query"?"需求发起者":"候选对象"}{method&&<em>METHOD {method}</em>}</div>
     <div className="profile-head"><span className="avatar large">{avatarNumber(profile.name)}</span><div><h1>{profile.name}</h1><p>{meta}</p></div></div>
+    {side==="candidate" && <div className="candidate-intent"><span>CANDIDATE SOCIAL INTENT</span><p>“{profile.intent || "该候选对象没有提供 Current_Social_Intent"}”</p></div>}
     <div className="about"><span>PROFILE SUMMARY</span><p>“{profile.bio}”</p></div>
     <div className="mini-fact"><span>互动方式</span><b>{profile.interaction}</b></div>
     <div className="mini-fact"><span>生活与可参与性</span><b>{profile.availability}</b></div>
