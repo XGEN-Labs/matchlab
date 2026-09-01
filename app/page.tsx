@@ -5,8 +5,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 type Profile = {
   id: string; name: string; gender?: string; age: number; city: string; role: string;
   bio: string; tags: string[]; availability: string; interaction: string;
-  assertions?: string[]; intent?: string; domainSummaries?: Record<string,string>; schema?: "matchlab" | "self-layer";
+  assertions?: ProfileAssertion[]; intent?: string; domainSummaries?: Record<string,string>; schema?: "matchlab" | "self-layer";
 };
+type AssertionSource = { path:string; memories:string[] };
+type ProfileAssertion = { text:string; sources:AssertionSource[] };
 
 type Review = {
   overall?: number; intent?: number; interaction?: number; context?: number;
@@ -64,6 +66,33 @@ function cleanDomainSummaries(summary:any) {
   }));
 }
 
+function readPath(root:any,path:string) {
+  return path.split(".").reduce((value,key)=>value?.[key],root);
+}
+
+function memoryContents(node:any):string[] {
+  if (!node || typeof node!=="object") return [];
+  if (Array.isArray(node)) return node.flatMap(memoryContents);
+  if (typeof node.content==="string" && node.content.trim() && !/^(unknown|未知|暂无|未提供)/i.test(node.content.trim()) && node.status!=="unknown") return [node.content.trim()];
+  return Object.values(node).flatMap(memoryContents);
+}
+
+const relevanceTerms=["朋友","搭子","社交","活动","线下","周末","时间","城市","本地","展览","音乐","演出","livehouse","摄影","散步","citywalk","徒步","运动","旅行","游戏","读书","电影","咖啡","吃饭","沟通","聊天","倾听","分享","情绪","支持","陪伴","轻松","节奏","边界","恋爱","约会","职业","求职","创业","学习","创意","反馈","合作","成长","生活"];
+function relevantAssertions(assertions:ProfileAssertion[],intent:string) {
+  const lowerIntent=intent.toLowerCase();
+  const activeTerms=relevanceTerms.filter(term=>lowerIntent.includes(term));
+  const ranked=assertions.map((item,index)=>{
+    const haystack=`${item.text} ${item.sources.map(s=>s.path).join(" ")}`.toLowerCase();
+    const termScore=activeTerms.reduce((score,term)=>score+(haystack.includes(term)?3:0),0);
+    const socialSource=item.sources.some(s=>/(interest|lifestyle|personality|identity|relationship|wellbeing)/i.test(s.path))?1:0;
+    const intentChars=new Set(lowerIntent.replace(/[\s，。、“”！？；：,.!?;:]/g,"").split(""));
+    const charScore=[...new Set(item.text.replace(/[\s，。、“”！？；：,.!?;:]/g,"").split(""))].filter(c=>intentChars.has(c)).length/12;
+    return {item,index,score:termScore+socialSource+charScore};
+  }).sort((a,b)=>b.score-a.score||a.index-b.index);
+  const relevant=ranked.filter(x=>x.score>=2).slice(0,5);
+  return (relevant.length>=3?relevant:ranked.slice(0,Math.min(3,ranked.length))).map(x=>x.item);
+}
+
 function collectProfiles(node: any, path: string[] = []): any[] {
   if (!node || typeof node !== "object") return [];
   if (node["06_User_Summary"] || node["00_Core_Profile"] || node["05_Matching_Profile"]) {
@@ -81,7 +110,10 @@ function extractProfile(raw: any, index: number): Profile {
     const domains = summary?.Domain_Summaries?.Core_Domains || {};
     const domainSummaries = cleanDomainSummaries(summary);
     const currentIntent = summary?.Current_Social_Intent?.intent;
-    const assertions = Array.isArray(summary?.Profile_Assertions) ? summary.Profile_Assertions.map((x:any)=>asText(x?.assertion,"")).filter(Boolean) : [];
+    const assertions:ProfileAssertion[] = Array.isArray(summary?.Profile_Assertions) ? summary.Profile_Assertions.map((x:any)=>({
+      text:asText(x?.assertion,""),
+      sources:(Array.isArray(x?.source_fields)?x.source_fields:[]).map((path:any)=>({path:String(path),memories:memoryContents(readPath(raw,String(path))).slice(0,5)})),
+    })).filter((x:ProfileAssertion)=>Boolean(x.text)) : [];
     const name = asText(core?.identity?.nickname || summary?.identity?.nickname || raw?.__sourceId, `User ${index+1}`);
     const birth = core?.identity?.birth?.date;
     const age = birth ? Math.max(0, new Date().getFullYear() - new Date(birth).getFullYear()) : Number(raw?.age || 0);
@@ -94,14 +126,14 @@ function extractProfile(raw: any, index: number): Profile {
     const role = raw?.["01_Self_Memory"]?.pursuit?.正在做的?.[0]?.role || pursuit || "Profile participant";
     const bioParts = [domains.personality, domains.interest].filter(Boolean);
     return { id:String(raw?.id || raw?.__sourceId || makeId(name,index)), name, gender:asText(core?.identity?.gender,"未提供"), age, city:asText(core?.residence?.city || domains.identity), role:asText(role),
-      bio:bioParts.join(" ") || assertions.slice(0,2).join(" ") || "暂无公开简介", tags:Array.isArray(tags)?tags.slice(0,8).map(String):[],
+      bio:bioParts.join(" ") || assertions.slice(0,2).map(x=>x.text).join(" ") || "暂无公开简介", tags:Array.isArray(tags)?tags.slice(0,8).map(String):[],
       availability:asText(domains.lifestyle || matching?.Social_Status?.social_availability,"未说明"), interaction:asText(styleParts,"未说明"),
-      assertions:assertions.slice(0,7), intent:currentIntent || matching?.Social_Intent?.current_motivation?.content, domainSummaries, schema:"self-layer" };
+      assertions, intent:currentIntent || matching?.Social_Intent?.current_motivation?.content, domainSummaries, schema:"self-layer" };
   }
   return { id:String(raw.id || makeId(String(raw.name || `User ${index+1}`),index)), name:String(raw.name || `User ${index+1}`), gender:String(raw.gender || "未提供"), age:Number(raw.age || 0),
     city:String(raw.city || "—"), role:String(raw.role || raw.occupation || "—"), bio:String(raw.bio || raw.about || ""),
     tags:Array.isArray(raw.tags)?raw.tags:[], availability:String(raw.availability || "Not specified"), interaction:String(raw.interaction || "Not specified"),
-    assertions:Array.isArray(raw.assertions)?raw.assertions:[], intent:raw.intent, domainSummaries:raw.domainSummaries, schema:"matchlab" };
+    assertions:Array.isArray(raw.assertions)?raw.assertions.map((x:any)=>typeof x==="string"?{text:x,sources:[]}:x):[], intent:raw.intent, domainSummaries:raw.domainSummaries, schema:"matchlab" };
 }
 
 export default function Home() {
@@ -218,8 +250,8 @@ export default function Home() {
           <section className="profile-panel compare-panel">
             <div className="compare-title"><span>QUERY USER</span><i>判断两个人在当前 intent 下是否合适</i><span>CANDIDATE {candidateIndex+1}/{candidates.length}</span></div>
             <div className="compare-profiles">
-              <PersonCard profile={queryProfile} side="query" />
-              <PersonCard profile={candidate} side="candidate" method={candidateIndex%2?"B":"A"} />
+              <PersonCard profile={queryProfile} side="query" relevanceIntent={intent} />
+              <PersonCard profile={candidate} side="candidate" relevanceIntent={intent} method={candidateIndex%2?"B":"A"} />
             </div>
           </section>
 
@@ -240,9 +272,10 @@ export default function Home() {
   );
 }
 
-function PersonCard({profile,side,method}:{profile:Profile;side:"query"|"candidate";method?:string}) {
+function PersonCard({profile,side,method,relevanceIntent}:{profile:Profile;side:"query"|"candidate";method?:string;relevanceIntent:string}) {
   const genderLabel = profile.gender==="female"?"女":profile.gender==="male"?"男":profile.gender || "未提供";
   const domainEntries=Object.entries(profile.domainSummaries || {});
+  const assertions=relevantAssertions(profile.assertions || [],relevanceIntent);
   return <article className={`person-card ${side}`}>
     <div className="person-label">{side==="query"?"需求发起者":"候选对象"}{method&&<em>METHOD {method}</em>}</div>
     <div className="profile-head"><span className="avatar large">{avatarNumber(profile.name)}</span><div><h1>{profile.name}</h1><p>{side==="query"?"Query User":"Candidate"}</p></div></div>
@@ -250,7 +283,7 @@ function PersonCard({profile,side,method}:{profile:Profile;side:"query"|"candida
     <div className="profile-intent"><span>{side==="query"?"QUERY SOCIAL INTENT":"CANDIDATE SOCIAL INTENT"}</span><p>“{profile.intent || (side==="query"?"该用户没有提供 Current_Social_Intent":"该候选对象没有提供 Current_Social_Intent")}”</p></div>
     {domainEntries.length ? <div className="domain-summaries"><span>DOMAIN SUMMARIES</span>{domainEntries.map(([key,value])=><section key={key}><b>{domainLabels[key] || key.replaceAll("_"," ")}</b><p>{value}</p></section>)}</div> : <div className="about"><span>PROFILE SUMMARY</span><p>“{profile.bio}”</p></div>}
     {!domainEntries.length && <><div className="mini-fact"><span>互动方式</span><b>{profile.interaction}</b></div><div className="mini-fact"><span>生活与可参与性</span><b>{profile.availability}</b></div><div className="interests"><span>兴趣与共同语境</span><div>{profile.tags.slice(0,6).map(t=><em key={t}>{t}</em>)}</div></div></>}
-    {!!profile.assertions?.length && <div className="assertions"><span>关键判断线索</span>{profile.assertions.slice(0,3).map((a,i)=><p key={i}><i>✓</i>{a}</p>)}</div>}
+    {!!assertions.length && <div className="assertions"><span>与当前 SOCIAL INTENT 相关的推论 <small>{assertions.length} 条</small></span>{assertions.map((a,i)=><details key={`${a.text}-${i}`}><summary><i>✓</i><span>{a.text}</span>{a.sources.length>0&&<sup title="查看原始记忆">{a.sources.length}</sup>}</summary>{a.sources.length>0&&<div className="evidence">{a.sources.map(source=><section key={source.path}><b>{source.path}</b>{source.memories.length?source.memories.map((memory,j)=><p key={j}>“{memory}”</p>):<p>此来源没有可展示的原始记忆内容</p>}</section>)}</div>}</details>)}</div>}
   </article>
 }
 
