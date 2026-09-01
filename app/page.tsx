@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 type Profile = {
   id: string; name: string; gender?: string; age: number; city: string; role: string;
   bio: string; tags: string[]; availability: string; interaction: string;
-  assertions?: string[]; intent?: string; schema?: "matchlab" | "self-layer";
+  assertions?: string[]; intent?: string; domainSummaries?: Record<string,string>; schema?: "matchlab" | "self-layer";
 };
 
 type Review = {
@@ -50,6 +50,19 @@ function makeId(name: string, index: number) {
 
 const userLabel = (index:number) => `U${String(index+1).padStart(2,"0")}`;
 const avatarNumber = (name:string) => name.replace(/\D/g,"") || name.slice(-2);
+const domainLabels: Record<string,string> = {
+  pursuit:"追求与目标", interest:"兴趣", lifestyle:"生活方式", experience:"经历",
+  inner:"内在需求", personality:"性格", identity:"身份认同", wellbeing:"身心状态",
+  astrology_context:"命理语境", relationship_record:"关系记录",
+};
+
+function cleanDomainSummaries(summary:any) {
+  const source={...(summary?.Domain_Summaries?.Core_Domains || {}),...(summary?.Domain_Summaries?.Additional_Domains || {})};
+  return Object.fromEntries(Object.entries(source).flatMap(([key,value])=>{
+    const text=asText(value,"");
+    return !text || /^(unknown|未知|不详|未提供|—|null|n\/a)$/i.test(text) ? [] : [[key,text]];
+  }));
+}
 
 function collectProfiles(node: any, path: string[] = []): any[] {
   if (!node || typeof node !== "object") return [];
@@ -66,6 +79,7 @@ function extractProfile(raw: any, index: number): Profile {
   const matching = raw?.["05_Matching_Profile"] || {};
   if (summary || core?.identity || matching?.Social_Intent) {
     const domains = summary?.Domain_Summaries?.Core_Domains || {};
+    const domainSummaries = cleanDomainSummaries(summary);
     const currentIntent = summary?.Current_Social_Intent?.intent;
     const assertions = Array.isArray(summary?.Profile_Assertions) ? summary.Profile_Assertions.map((x:any)=>asText(x?.assertion,"")).filter(Boolean) : [];
     const name = asText(core?.identity?.nickname || summary?.identity?.nickname || raw?.__sourceId, `User ${index+1}`);
@@ -82,12 +96,12 @@ function extractProfile(raw: any, index: number): Profile {
     return { id:String(raw?.id || raw?.__sourceId || makeId(name,index)), name, gender:asText(core?.identity?.gender,"未提供"), age, city:asText(core?.residence?.city || domains.identity), role:asText(role),
       bio:bioParts.join(" ") || assertions.slice(0,2).join(" ") || "暂无公开简介", tags:Array.isArray(tags)?tags.slice(0,8).map(String):[],
       availability:asText(domains.lifestyle || matching?.Social_Status?.social_availability,"未说明"), interaction:asText(styleParts,"未说明"),
-      assertions:assertions.slice(0,7), intent:currentIntent || matching?.Social_Intent?.current_motivation?.content, schema:"self-layer" };
+      assertions:assertions.slice(0,7), intent:currentIntent || matching?.Social_Intent?.current_motivation?.content, domainSummaries, schema:"self-layer" };
   }
   return { id:String(raw.id || makeId(String(raw.name || `User ${index+1}`),index)), name:String(raw.name || `User ${index+1}`), gender:String(raw.gender || "未提供"), age:Number(raw.age || 0),
     city:String(raw.city || "—"), role:String(raw.role || raw.occupation || "—"), bio:String(raw.bio || raw.about || ""),
     tags:Array.isArray(raw.tags)?raw.tags:[], availability:String(raw.availability || "Not specified"), interaction:String(raw.interaction || "Not specified"),
-    assertions:Array.isArray(raw.assertions)?raw.assertions:[], intent:raw.intent, schema:"matchlab" };
+    assertions:Array.isArray(raw.assertions)?raw.assertions:[], intent:raw.intent, domainSummaries:raw.domainSummaries, schema:"matchlab" };
 }
 
 export default function Home() {
@@ -228,15 +242,14 @@ export default function Home() {
 
 function PersonCard({profile,side,method}:{profile:Profile;side:"query"|"candidate";method?:string}) {
   const genderLabel = profile.gender==="female"?"女":profile.gender==="male"?"男":profile.gender || "未提供";
+  const domainEntries=Object.entries(profile.domainSummaries || {});
   return <article className={`person-card ${side}`}>
     <div className="person-label">{side==="query"?"需求发起者":"候选对象"}{method&&<em>METHOD {method}</em>}</div>
     <div className="profile-head"><span className="avatar large">{avatarNumber(profile.name)}</span><div><h1>{profile.name}</h1><p>{side==="query"?"Query User":"Candidate"}</p></div></div>
     <div className="basic-info"><div><span>性别</span><b>{genderLabel}</b></div><div><span>年龄</span><b>{profile.age?`${profile.age} 岁`:"未提供"}</b></div><div><span>职业</span><b>{profile.role&&profile.role!=="—"?profile.role:"未提供"}</b></div></div>
     <div className="profile-intent"><span>{side==="query"?"QUERY SOCIAL INTENT":"CANDIDATE SOCIAL INTENT"}</span><p>“{profile.intent || (side==="query"?"该用户没有提供 Current_Social_Intent":"该候选对象没有提供 Current_Social_Intent")}”</p></div>
-    <div className="about"><span>PROFILE SUMMARY</span><p>“{profile.bio}”</p></div>
-    <div className="mini-fact"><span>互动方式</span><b>{profile.interaction}</b></div>
-    <div className="mini-fact"><span>生活与可参与性</span><b>{profile.availability}</b></div>
-    <div className="interests"><span>兴趣与共同语境</span><div>{profile.tags.slice(0,6).map(t=><em key={t}>{t}</em>)}</div></div>
+    {domainEntries.length ? <div className="domain-summaries"><span>DOMAIN SUMMARIES</span>{domainEntries.map(([key,value])=><section key={key}><b>{domainLabels[key] || key.replaceAll("_"," ")}</b><p>{value}</p></section>)}</div> : <div className="about"><span>PROFILE SUMMARY</span><p>“{profile.bio}”</p></div>}
+    {!domainEntries.length && <><div className="mini-fact"><span>互动方式</span><b>{profile.interaction}</b></div><div className="mini-fact"><span>生活与可参与性</span><b>{profile.availability}</b></div><div className="interests"><span>兴趣与共同语境</span><div>{profile.tags.slice(0,6).map(t=><em key={t}>{t}</em>)}</div></div></>}
     {!!profile.assertions?.length && <div className="assertions"><span>关键判断线索</span>{profile.assertions.slice(0,3).map((a,i)=><p key={i}><i>✓</i>{a}</p>)}</div>}
   </article>
 }
