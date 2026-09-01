@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type Profile = {
-  id: string; name: string; age: number; city: string; role: string;
+  id: string; name: string; gender?: string; age: number; city: string; role: string;
   bio: string; tags: string[]; availability: string; interaction: string;
   assertions?: string[]; intent?: string; schema?: "matchlab" | "self-layer";
 };
@@ -79,12 +79,12 @@ function extractProfile(raw: any, index: number): Profile {
     const pursuit = domains.pursuit || raw?.["01_Self_Memory"]?.pursuit?.正在做的?.[0]?.content;
     const role = raw?.["01_Self_Memory"]?.pursuit?.正在做的?.[0]?.role || pursuit || "Profile participant";
     const bioParts = [domains.personality, domains.interest].filter(Boolean);
-    return { id:String(raw?.id || raw?.__sourceId || makeId(name,index)), name, age, city:asText(core?.residence?.city || domains.identity), role:asText(role),
+    return { id:String(raw?.id || raw?.__sourceId || makeId(name,index)), name, gender:asText(core?.identity?.gender,"未提供"), age, city:asText(core?.residence?.city || domains.identity), role:asText(role),
       bio:bioParts.join(" ") || assertions.slice(0,2).join(" ") || "暂无公开简介", tags:Array.isArray(tags)?tags.slice(0,8).map(String):[],
       availability:asText(domains.lifestyle || matching?.Social_Status?.social_availability,"未说明"), interaction:asText(styleParts,"未说明"),
       assertions:assertions.slice(0,7), intent:currentIntent || matching?.Social_Intent?.current_motivation?.content, schema:"self-layer" };
   }
-  return { id:String(raw.id || makeId(String(raw.name || `User ${index+1}`),index)), name:String(raw.name || `User ${index+1}`), age:Number(raw.age || 0),
+  return { id:String(raw.id || makeId(String(raw.name || `User ${index+1}`),index)), name:String(raw.name || `User ${index+1}`), gender:String(raw.gender || "未提供"), age:Number(raw.age || 0),
     city:String(raw.city || "—"), role:String(raw.role || raw.occupation || "—"), bio:String(raw.bio || raw.about || ""),
     tags:Array.isArray(raw.tags)?raw.tags:[], availability:String(raw.availability || "Not specified"), interaction:String(raw.interaction || "Not specified"),
     assertions:Array.isArray(raw.assertions)?raw.assertions:[], intent:raw.intent, schema:"matchlab" };
@@ -227,10 +227,11 @@ export default function Home() {
 }
 
 function PersonCard({profile,side,method}:{profile:Profile;side:"query"|"candidate";method?:string}) {
-  const meta = [profile.age ? `${profile.age}岁` : "", profile.city, profile.role].filter(x=>x && x!=="—").join(" · ");
+  const genderLabel = profile.gender==="female"?"女":profile.gender==="male"?"男":profile.gender || "未提供";
   return <article className={`person-card ${side}`}>
     <div className="person-label">{side==="query"?"需求发起者":"候选对象"}{method&&<em>METHOD {method}</em>}</div>
-    <div className="profile-head"><span className="avatar large">{avatarNumber(profile.name)}</span><div><h1>{profile.name}</h1><p>{meta}</p></div></div>
+    <div className="profile-head"><span className="avatar large">{avatarNumber(profile.name)}</span><div><h1>{profile.name}</h1><p>{side==="query"?"Query User":"Candidate"}</p></div></div>
+    <div className="basic-info"><div><span>性别</span><b>{genderLabel}</b></div><div><span>年龄</span><b>{profile.age?`${profile.age} 岁`:"未提供"}</b></div><div><span>城市</span><b>{profile.city&&profile.city!=="—"?profile.city:"未提供"}</b></div><div><span>职业</span><b>{profile.role&&profile.role!=="—"?profile.role:"未提供"}</b></div></div>
     <div className="profile-intent"><span>{side==="query"?"QUERY SOCIAL INTENT":"CANDIDATE SOCIAL INTENT"}</span><p>“{profile.intent || (side==="query"?"该用户没有提供 Current_Social_Intent":"该候选对象没有提供 Current_Social_Intent")}”</p></div>
     <div className="about"><span>PROFILE SUMMARY</span><p>“{profile.bio}”</p></div>
     <div className="mini-fact"><span>互动方式</span><b>{profile.interaction}</b></div>
