@@ -231,7 +231,7 @@ function PersonCard({profile,side,method}:{profile:Profile;side:"query"|"candida
   return <article className={`person-card ${side}`}>
     <div className="person-label">{side==="query"?"需求发起者":"候选对象"}{method&&<em>METHOD {method}</em>}</div>
     <div className="profile-head"><span className="avatar large">{avatarNumber(profile.name)}</span><div><h1>{profile.name}</h1><p>{side==="query"?"Query User":"Candidate"}</p></div></div>
-    <div className="basic-info"><div><span>性别</span><b>{genderLabel}</b></div><div><span>年龄</span><b>{profile.age?`${profile.age} 岁`:"未提供"}</b></div><div><span>城市</span><b>{profile.city&&profile.city!=="—"?profile.city:"未提供"}</b></div><div><span>职业</span><b>{profile.role&&profile.role!=="—"?profile.role:"未提供"}</b></div></div>
+    <div className="basic-info"><div><span>性别</span><b>{genderLabel}</b></div><div><span>年龄</span><b>{profile.age?`${profile.age} 岁`:"未提供"}</b></div><div><span>职业</span><b>{profile.role&&profile.role!=="—"?profile.role:"未提供"}</b></div></div>
     <div className="profile-intent"><span>{side==="query"?"QUERY SOCIAL INTENT":"CANDIDATE SOCIAL INTENT"}</span><p>“{profile.intent || (side==="query"?"该用户没有提供 Current_Social_Intent":"该候选对象没有提供 Current_Social_Intent")}”</p></div>
     <div className="about"><span>PROFILE SUMMARY</span><p>“{profile.bio}”</p></div>
     <div className="mini-fact"><span>互动方式</span><b>{profile.interaction}</b></div>
