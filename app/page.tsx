@@ -78,10 +78,11 @@ function memoryContents(node:any):string[] {
 }
 
 const relevanceTerms=["朋友","搭子","社交","活动","线下","周末","时间","城市","本地","展览","音乐","演出","livehouse","摄影","散步","citywalk","徒步","运动","旅行","游戏","读书","电影","咖啡","吃饭","沟通","聊天","倾听","分享","情绪","支持","陪伴","轻松","节奏","边界","恋爱","约会","职业","求职","创业","学习","创意","反馈","合作","成长","生活"];
-function relevantAssertions(assertions:ProfileAssertion[],intent:string) {
+function relevantAssertions(assertions:Array<ProfileAssertion|string>,intent:string) {
   const lowerIntent=intent.toLowerCase();
   const activeTerms=relevanceTerms.filter(term=>lowerIntent.includes(term));
-  const ranked=assertions.map((item,index)=>{
+  const normalized=assertions.map(item=>typeof item==="string"?{text:item,sources:[]}:({...item,sources:Array.isArray(item?.sources)?item.sources:[]}));
+  const ranked=normalized.map((item,index)=>{
     const haystack=`${item.text} ${item.sources.map(s=>s.path).join(" ")}`.toLowerCase();
     const termScore=activeTerms.reduce((score,term)=>score+(haystack.includes(term)?3:0),0);
     const socialSource=item.sources.some(s=>/(interest|lifestyle|personality|identity|relationship|wellbeing)/i.test(s.path))?1:0;
